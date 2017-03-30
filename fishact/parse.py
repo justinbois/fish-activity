@@ -68,7 +68,8 @@ def tidy_data(activity_name, genotype_name, out_name, lights_on, lights_off,
     return None
 
 
-def load_gtype(fname):
+def load_gtype(fname, delimiter='\t', comment='#', double_header=True,
+               rstrip=True):
     """
     Read genotype file into tidy DataFrame
 
@@ -83,6 +84,19 @@ def load_gtype(fname):
           'tph2-/- (n=20)', and we do not need the ' (n=20)'.
         - Subsequent rows containg wells in the 96 well plate
           corresponding to each genotype.
+    delimiter : string, default '\t'
+        Delimiter of file
+    comment : string, default '#'
+        Test that begins and comment line in the file
+    double_header : bool, default True
+        If True, the file has a two-line header. The first line
+        is ignored and the second is kept as a header, possibly
+        with stripping using the `rstrip` argument. This is
+        typical of the current Prober lab format.
+    rstrip : bool, default True
+        If True, strip out all text in genotype name to the right of
+        the last space. This is because the genotype files typically
+        have headers like 'wt (n=22)', and the '(n=22)' is useless.
 
     Returns
     -------
@@ -91,15 +105,20 @@ def load_gtype(fname):
         - fish: ID of fish
         - genotype: genotype of fish
     """
-    # Read file
-    df = pd.read_csv(fname, delimiter='\t', comment='#', header=[0, 1])
+    # Read in the file
+    if double_header:
+        df = pd.read_csv(fname, delimiter=delimiter, comment=comment,
+                         header=[0, 1])
 
-    # Reset the columns to be the second level of indexing
-    df.columns = df.columns.get_level_values(1)
+        # Reset the columns to be the second level of indexing
+        df.columns = df.columns.get_level_values(1)
+    else:
+        df = pd.read_csv(fname, delimiter=delimiter, comment=comment)
 
     # Only keep genotype up to last space because sometimes has n
-    df.columns = [col[:col.rfind(' ')] if col.rfind(' ') > 0 else col
-                  for col in df.columns]
+    if rstrip:
+        df.columns = [col[:col.rfind(' ')] if col.rfind(' ') > 0 else col
+                            for col in df.columns]
 
     # Melt the DataFrame
     df = pd.melt(df, var_name='genotype', value_name='fish').dropna()
@@ -108,13 +127,13 @@ def load_gtype(fname):
     df = df.reset_index(drop=True)
 
     # Make sure data type is integer
-    df.loc[:,'fish'] = df.loc[:, 'fish'].astype(int)
+    df.loc[:,'fish'] = df.loc[:,'fish'].astype(int)
 
     return df
 
 
-def load_data(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
-              extra_cols=[], rename={'middur': 'activity'}):
+def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
+                  extra_cols=[], rename={'middur': 'activity'}):
     """
     Load in activity CSV file to tidy DateFrame
 
