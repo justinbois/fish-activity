@@ -21,8 +21,8 @@ def get_y_axis_label(df):
 
     # Get approximate time interval of averages
     inds = df['fish']==df['fish'].unique()[0]
-    zeit = np.sort(df.loc[inds, 'zeit'].values)
-    dt = np.median(np.diff(zeit)) * 60
+    exp_time = np.sort(df.loc[inds, 'exp_time'].values)
+    dt = np.median(np.diff(exp_time)) * 60
 
     # Make y-axis label
     if 0.05 <= abs(dt - int(dt)) <= 0.95:
@@ -78,9 +78,9 @@ def all_traces(df, summary_trace='mean', time_shift='left',  alpha=0.75,
 
     # Make plots
     p = tsplot.all_traces(
-            df, 'zeit', 'activity', 'fish', time_ind='zeit_ind', light='light',
-            summary_trace='mean', time_shift=time_shift, alpha=0.75,
-            x_axis_label='time (hr)', y_axis_label=y_axis_label)
+            df, 'exp_time', 'activity', 'fish', time_ind='exp_ind',
+            light='light', summary_trace='mean', time_shift=time_shift,
+            alpha=0.75, x_axis_label='time (hr)', y_axis_label=y_axis_label)
 
     return p
 
@@ -133,10 +133,10 @@ def grid(df, summary_trace='mean', time_shift='left',  alpha=0.75,
 
     # Make plots
     p = tsplot.grid(
-            df, 'zeit', 'activity', 'genotype', 'fish', time_ind='zeit_ind',
-            light='light', summary_trace=summary_trace, time_shift=time_shift,
-            height=height, width=width, x_axis_label='time (hr)',
-            y_axis_label=y_axis_label, colors=colors)
+            df, 'exp_time', 'activity', 'genotype', 'fish',
+            time_ind='exp_ind', light='light', summary_trace=summary_trace,
+            time_shift=time_shift, height=height, width=width,
+            x_axis_label='time (hr)', y_axis_label=y_axis_label, colors=colors)
 
     return p
 
@@ -199,10 +199,11 @@ def summary(df, summary_trace='mean', time_shift='left', confint=True,
     y_axis_label = get_y_axis_label(df)
 
     p = tsplot.summary(
-            df, 'zeit', 'activity', 'genotype', 'fish', time_ind='zeit_ind',
-            light='light', summary_trace=summary_trace, time_shift=time_shift,
-            confint=confint, ptiles=ptiles, n_bs_reps=n_bs_reps, alpha=0.25,
-            height=height, width=width, x_axis_label='time',
-            y_axis_label=y_axis_label, colors=colors, legend=legend)
+            df, 'exp_time', 'activity', 'genotype', 'fish',
+            time_ind='exp_ind', light='light', summary_trace=summary_trace,
+            time_shift=time_shift, confint=confint, ptiles=ptiles,
+            n_bs_reps=n_bs_reps, alpha=0.25, height=height, width=width,
+            x_axis_label='time', y_axis_label=y_axis_label, colors=colors,
+            legend=legend)
 
     return p

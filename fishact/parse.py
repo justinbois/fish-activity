@@ -55,17 +55,14 @@ def tidy_data(activity_name, genotype_name, out_name, lights_on, lights_off,
         - time: time in proper datetime format
         - fish: ID of the fish
         - genotype: genotype of the fish
-        - zeit: Zeitgeber time
-        - zeit_ind: an index for the Zeitgeber time. Because of some
+        - expt_time: Experimental time
+        - exp_ind: an index for the experimental time. Because of some
           errors in the acquisition, sometimes the times do not
-          perfectly line up. zeit_ind is just the index of the
+          perfectly line up. exp_ind is just the index of the
           measurement. This is needed for computing averages over
           fish at each time point.
         - light: True if the light is on.
         - day: The day in the life of the fish
-    .. The column 'zeit' contains the Zeitgeber time, and is
-       calculated from the time stamps in the original data
-       set, *not* from the 'start' and 'end' columns.
     """
     df = load_data(activity_name, genotype_name, lights_on, lights_off,
                    day_in_the_life, extra_cols=extra_cols, rename=rename)
@@ -181,21 +178,15 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
           column of the inputted data file
         - fish: ID of the fish
         - genotype: genotype of the fish
-        - zeit: Zeitgeber time, based on the `start` column of the
-          inputted data file
-        - zeit_ind: an index for the Zeitgeber time. Because of some
+        - exp_time: Experimental time, based on the `start` column of
+            the inputted data file
+        - exp_ind: an index for the experimental time. Because of some
           errors in the acquisition, sometimes the times do not
-          perfectly line up. zeit_ind is just the index of the
+          perfectly line up. exp_ind is just the index of the
           measurement. This is needed for computing averages over
           fish at each time point.
         - light: True if the light is on.
         - day: The day in the life of the fish
-
-    Notes
-    -----
-    .. The column 'zeit' contains the Zeitgeber time, and is
-       calculated from the time stamps in the original data
-       set, *not* from the 'start' and 'end' columns.
     """
 
     # Convert lightson and lightsoff to datetime.time objects
@@ -236,8 +227,8 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
     # Get earliest time point
     t_min = pd.DatetimeIndex(df['time']).min()
 
-    # Get Zeitgeber time in units of hours
-    df['zeit'] = df['start'] / 3600
+    # Get experimental time in units of hours
+    df['exp_time'] = df['start'] / 3600
 
     # Determine light or dark
     clock = pd.DatetimeIndex(df['time']).time
@@ -248,14 +239,14 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
         df['time'] - datetime.datetime.combine(t_min.date(), lights_on)).day \
                 + day_in_the_life - 1
 
-    # Sort by fish and zeit
-    df = df.sort_values(by=['fish', 'zeit']).reset_index(drop=True)
+    # Sort by fish and exp_time
+    df = df.sort_values(by=['fish', 'exp_time']).reset_index(drop=True)
 
-    # Set up zeit indices
+    # Set up exp_time indices
     for fish in df['fish'].unique():
-        df.loc[df['fish']==fish, 'zeit_ind'] = np.arange(
+        df.loc[df['fish']==fish, 'exp_ind'] = np.arange(
                                                     np.sum(df['fish']==fish))
-    df['zeit_ind'] = df['zeit_ind'].astype(int)
+    df['exp_ind'] = df['exp_ind'].astype(int)
 
     # Return everything if we don't want to delete anything
     if 'sttime' not in extra_cols:
@@ -266,7 +257,7 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
         usecols.remove('start')
     usecols.remove('location')
 
-    cols = usecols + ['time', 'fish', 'genotype', 'zeit', 'zeit_ind',
+    cols = usecols + ['time', 'fish', 'genotype', 'exp_time', 'exp_ind',
                       'light', 'day']
     df = df[cols]
 
@@ -309,11 +300,11 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0):
           column of the inputted data file
         - fish: ID of the fish
         - genotype: genotype of the fish
-        - zeit: Zeitgeber time, based on the `start` column of the
-          inputted data file
-        - zeit_ind: an index for the Zeitgeber time. Because of some
+        - exp_time: Experimental time, based on the start of the
+          experiment.
+        - exp_ind: an index for the experimental time. Because of some
           errors in the acquisition, sometimes the times do not
-          perfectly line up. zeit_ind is just the index of the
+          perfectly line up. exp_ind is just the index of the
           measurement. This is needed for computing averages over
           fish at each time point.
         - light: True if the light is on.
@@ -366,9 +357,9 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0):
     # Insert the day numnber into DataFrame
     df['day'] = pd.Series(day, index=df.index)
 
-    # Build zeit and put it in the DataFrame
-    zeit = 24.0 * df['day'] + df['CLOCK']
-    df['zeit'] = pd.Series(zeit, index=df.index)
+    # Build exp_time and put it in the DataFrame
+    exp_time = 24.0 * df['day'] + df['CLOCK'] - df['CLOCK'][0]
+    df['exp_time'] = pd.Series(exp_time, index=df.index)
 
     # Build list of genotypes
     genotypes = []
@@ -461,7 +452,7 @@ def resample(df, ind_win, signal=['activity'], quiet=False):
     ----------
     df : pandas DataFrame
         DataFrame with pertinent data. Must have columns 'time',
-        'fish', 'genotype', 'day', 'light', 'zeit'.
+        'fish', 'genotype', 'day', 'light', 'exp_time'.
     ind_win : int
         Window for resampling, in units of indices.
     signal : list
@@ -478,7 +469,7 @@ def resample(df, ind_win, signal=['activity'], quiet=False):
     Notes
     -----
     .. Assumes that the signal is aligned with the
-       *left* of the time interval. I.e., if df['zeit'] = [0, 1, 2],
+       *left* of the time interval. I.e., if df['exp_time'] = [0, 1, 2],
        the values of df['activity'] are assumed to be aggregated over
        time intervals 0 to 1, 1 to 2, and 2 to 3. The same is true
        for the outputted resampled array.
@@ -486,8 +477,8 @@ def resample(df, ind_win, signal=['activity'], quiet=False):
     # Make a copy so as to leave original unperturbed
     df_in = df.copy()
 
-    # Sort the DataFrame by fish and then zeit
-    df_in = df_in.sort_values(by=['fish', 'zeit']).reset_index(drop=True)
+    # Sort the DataFrame by fish and then exp_time
+    df_in = df_in.sort_values(by=['fish', 'exp_time']).reset_index(drop=True)
 
     # If no resampling is necessary
     if ind_win == 1:
@@ -497,11 +488,11 @@ def resample(df, ind_win, signal=['activity'], quiet=False):
     df_out = pd.DataFrame(columns=df_in.columns)
 
     if not quiet:
+        print('Performing resampling....')
         try:
             iterator = tqdm.tqdm(df_in['fish'].unique())
         except:
             iterator = df_in['fish'].unique()
-        print('Performing resampling....')
     else:
         iterator = df_in['fish'].unique()
 
@@ -517,11 +508,11 @@ def resample(df, ind_win, signal=['activity'], quiet=False):
 
         # Resample data for each segment
         for i, ind in enumerate(inds[:-1]):
-            new_df = resample_segment(
+            new_df = _resample_segment(
                             df_fish.loc[ind:inds[i+1]-1, :], ind_win, signal)
             new_df = new_df.drop('switch', 1)
             df_out = df_out.append(new_df, ignore_index=True)
-        new_df = resample_segment(df_fish.loc[inds[-1]:, :], ind_win, signal)
+        new_df = _resample_segment(df_fish.loc[inds[-1]:, :], ind_win, signal)
         new_df = new_df.drop('switch', 1)
         df_out = df_out.append(new_df, ignore_index=True)
 
