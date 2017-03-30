@@ -63,8 +63,9 @@ def test_resample_segment():
 def test_resample():
     df = pd.DataFrame(
         {'fish': np.concatenate((np.ones(10), 2*np.ones(10))).astype(int),
-         'zeit': np.concatenate((np.arange(10), np.arange(10))).astype(float),
-         'zeit_ind': np.concatenate((np.arange(10), np.arange(10))).astype(int),
+         'exp_time': np.concatenate((np.arange(10),
+                                     np.arange(10))).astype(float),
+         'exp_ind': np.concatenate((np.arange(10), np.arange(10))).astype(int),
          'activity': np.concatenate((np.arange(10),
                                      np.arange(10, 20))).astype(float),
          'light': [True]*10 + [False]*10,
@@ -91,6 +92,6 @@ def test_resample():
          'light': [True, True, False, False],
          'time': pd.to_datetime(['2017-03-30 14:00:00',
                                  '2017-03-30 14:05:00']*2),
-         'zeit': np.array([0., 5., 0., 5.]),
-         'zeit_ind': np.array([0, 5, 0, 5], dtype=int)})
+         'exp_time': np.array([0., 5., 0., 5.]),
+         'exp_ind': np.array([0, 5, 0, 5], dtype=int)})
     assert_frame_equal(re_df, correct_df)

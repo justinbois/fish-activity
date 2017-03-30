@@ -66,6 +66,7 @@ if __name__ == '__main__':
         ptiles = (50-conf_size/2, 50+conf_size/2)
 
     # Parse data Frames
+    print('Loading in the data....')
     df = fishact.parse.load_activity(
                  args.activity_fname, args.gtype_fname, args.lights_on,
                  args.lights_off, int(args.day_in_the_life))
