@@ -189,7 +189,7 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
         - day: The day in the life of the fish
     """
 
-    # Convert lightson and lightsoff to datetime.time objects
+    # Convert lights_on and lights_off to datetime.time objects
     if type(lights_on) != datetime.time:
         lights_on = pd.to_datetime(lights_on).time()
     if type(lights_off) != datetime.time:
