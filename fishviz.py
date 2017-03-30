@@ -7,25 +7,25 @@ import pandas as pd
 
 import bokeh.io
 
-import data_parser
+import fishact
 import tsplot
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Generate interactive plots of zebrafish activity time series.')
-    required = parser.add_argument_group('required arguments')
-    required.add_argument('--activity', '-a', action='store',
-                        dest='activity_file', required=True,
-                        help='Name of file containing activity data')
-    required.add_argument('--out', '-o', action='store',
-                        dest='html_file', required=True,
-                        help='Name of file to store output')
-    parser.add_argument('--gtype', '-g', action='store', dest='gtype_file',
-        help="Name of file containing genotypes (req'd unles --tidy selected)")
-    parser.add_argument('--tidy', '-t', action='store_true', dest='tidy',
-                        default=False,
-                        help='If data set is already tidied.')
+    parser.add_argument('activity_fname', metavar='activity_file', type=str,
+                        help='Name of activity file.')
+    parser.add_argument('gtype_fname', metavar='genotype_file', type=str,
+                        help='Name of genotype file.')
+    parser.add_argument('--out', '-o', action='store', default=None,
+                        dest='html_file',
+                        help='Name of file to store output. Defaults to the prefix of the activity file name + `.html`.')
+    parser.add_argument('--summary', '-s', action='store_true', dest='summary',
+                    help='Select to give summary plot, not plot of all fish.')
+    parser.add_argument('--confint', '-c', action='store', dest='confint',
+                        default='95',
+                        help='Confidence interval for summary plot; default is 95. If 0, no confidence interval shows.')
     parser.add_argument('--window', '-w', action='store', dest='ind_win',
                         default=10,
                 help='Number of time points to use in averages (default 10)')
@@ -38,44 +38,40 @@ if __name__ == '__main__':
     parser.add_argument('--startday', '-D', action='store',
                         dest='day_in_the_life', default=5,
             help="Day in zebrafish's life that experiment began (default 5)" )
-    parser.add_argument('--summarystat', '-s', action='store',
+    parser.add_argument('--stat', '-S', action='store',
                         dest='summary_trace', default='mean',
                         help="Which summary statistic to compute, choose from [mean, median, max, min, none], default is mean.")
-    parser.add_argument('--timeshift', '-S', action='store',
+    parser.add_argument('--timeshift', '-t', action='store',
                         dest='time_shift', default='left',
                         help="Which part of time interval is used in plot; acceptable values: [left, right, center, interval], default is left.")
     parser.add_argument('--ignoregtype', '-i', action='store_true',
                         dest='ignore_gtype', default=False,
                         help="Ignore genotype information (genotype file still must be provided to determine which fish are analyze-able).")
-    parser.add_argument('--perlprocessed', '-p', action='store_true',
-                        dest='perl_processed', default=False,
-            help='If data set already pre-processed by Prober lab Perl script.')
     args = parser.parse_args()
 
     # Specify output
-    bokeh.io.output_file(args.html_file, title='fish sleep explorer')
+    if args.html_file is not None:
+        bokeh.io.output_file(args.html_file, title='fish sleep explorer')
+    else:
+        outfile = args.activity_fname[:args.activity_fname.rfind('.')] + '.html'
+        bokeh.io.output_file(outfile, title='fish sleep explorer')
+
+    # Set the confidence interval
+    ptiles = (2.5, 97.5)
+    confint = True
+    if args.confint == '0':
+        confint = False
+    else:
+        conf_size = float(args.confint)
+        ptiles = (50-conf_size/2, 50+conf_size/2)
 
     # Parse data Frames
-    if args.tidy:
-        df = pd.read_csv(args.activity_file)
-    elif args.perl_processed:
-        df_gt = data_parser.load_gtype(args.gtype_file)
-        df = data_parser.load_perl_processed_activity(args.activity_file, df_gt)
-    else:
-        df = data_parser.load_data(
-                 args.activity_file, args.gtype_file, args.lights_on,
+    df = fishact.parse.load_activity(
+                 args.activity_fname, args.gtype_fname, args.lights_on,
                  args.lights_off, int(args.day_in_the_life))
 
     # Resample the data
-    df_resampled = data_parser.resample(df, int(args.ind_win))
-
-    # Get approximate time interval of averages
-    inds = df_resampled.fish==df_resampled.fish.unique()[0]
-    zeit = np.sort(df_resampled.loc[inds, 'zeit'].values)
-    dt = np.mean(np.diff(zeit)) * 60
-
-    # Make y-axis label
-    y_axis_label = 'sec. of act. in {0:.1f} min.'.format(dt)
+    df = fishact.parse.resample(df, int(args.ind_win))
 
     # Get summary statistic
     if args.summary_trace in ['none', 'None']:
@@ -83,19 +79,22 @@ if __name__ == '__main__':
 
     # Make plots
     if args.ignore_gtype:
-        p = tsplot.canvas(df_resampled, 'fish', height=350, width=650,
-                          x_axis_label='time (hr)', y_axis_label=y_axis_label,
-                          light='light', time='zeit')
-        p = tsplot.time_series_plot(p, df_resampled, 'fish', 'zeit',
-                                    'activity', time_ind='zeit_ind', title=None,
-                                    summary_trace=args.summary_trace,
-                                    time_shift=args.time_shift)
+        if args.summary:
+            df['genotype'] = ['all combined'] * len(df)
+            p = fishact.visualize.summary(df, summary_trace=args.summary_trace,
+                    time_shift=args.time_shift, confint=confint, ptiles=ptiles,
+                    legend=False)
+        else:
+            p = fishact.visualize.all_traces(df,
+                summary_trace=args.summary_trace, time_shift=args.time_shift)
     else:
-        p = tsplot.grid(df_resampled, 'fish', 'genotype', 'zeit', 'activity',
-                        time_ind='zeit_ind', light='light',
-                        x_axis_label='time (hr)', y_axis_label=y_axis_label,
-                        summary_trace=args.summary_trace,
-                        time_shift=args.time_shift)
+        if args.summary:
+            p = fishact.visualize.summary(df, summary_trace=args.summary_trace,
+                    time_shift=args.time_shift, confint=confint, ptiles=ptiles)
+        else:
+            p = fishact.visualize.grid(df, summary_trace=args.summary_trace,
+                                       time_shift=args.time_shift)
 
-    # Save HTML file
+    # Save and show HTML file
     bokeh.io.save(p)
+    bokeh.io.show(p)
