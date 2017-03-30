@@ -413,6 +413,18 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
 def _resample_array(x, ind_win):
     """
     Resample a NumPy array.
+
+    Parameters
+    ----------
+    x : ndarray
+        Array to resample with summing.
+    ind_win : int
+        Width of window to de resampling.
+
+    Returns
+    -------
+    output : ndarray
+        resampled array.
     """
     if len(x) == 0:
         raise RuntimeError('`x` must be nonempty.')
