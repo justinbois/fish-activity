@@ -268,7 +268,8 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
     return df
 
 
-def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0):
+def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
+                                 day_in_the_life=5):
     """
     Load activity data into tidy DataFrame from Prober lab Perl script.
 
@@ -289,6 +290,9 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0):
     lights_off : float, default 14.0
         The time where lights come on each day according to the
         Zeitgeber time, in units of hours.
+    day_in_the_life : int
+        The day in the life of the embryos when data acquisition
+        started.
 
     Returns
     -------
@@ -296,8 +300,6 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0):
         Tidy DataFrame with columns:
         - activity: The activity as given by the instrument, based
           on the `middur` columns of the inputted data set
-        - time: time in proper datetime format, based on the `sttime`
-          column of the inputted data file
         - fish: ID of the fish
         - genotype: genotype of the fish
         - exp_time: Experimental time, based on the start of the
@@ -307,6 +309,7 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0):
           perfectly line up. exp_ind is just the index of the
           measurement. This is needed for computing averages over
           fish at each time point.
+        - zeit : Zeitgeber time
         - light: True if the light is on.
         - day: The day in the life of the fish
     """
@@ -355,7 +358,7 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0):
     day[dark_to_light[-1]+1:] = len(dark_to_light)
 
     # Insert the day numnber into DataFrame
-    df['day'] = pd.Series(day, index=df.index)
+    df['day'] = pd.Series(day, index=df.index) + day_in_the_life
 
     # Build exp_time and put it in the DataFrame
     exp_time = 24.0 * df['day'] + df['CLOCK'] - df['CLOCK'][0]
@@ -393,6 +396,15 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0):
 
     # Make fish IDs integer
     df['fish'] = df['fish'].apply(lambda x: int(x.lstrip('FISH')))
+
+    # Rename CLOCK to zeit
+    df = df.rename(columns={'CLOCK': 'zeit'})
+
+    # Set up exp_time indices
+    for fish in df['fish'].unique():
+        df.loc[df['fish']==fish, 'exp_ind'] = np.arange(
+                                                    np.sum(df['fish']==fish))
+    df['exp_ind'] = df['exp_ind'].astype(int)
 
     return df
 
