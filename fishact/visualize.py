@@ -33,7 +33,7 @@ def get_y_axis_label(df, signal):
         return 'sec. of {0:s} in {1:d} min.'.format(signal, int(np.round(dt)))
 
 
-def all_traces(df, signal='activity', summary_trace='mean', time_shift='left',
+def all_traces(df, signal='activity', summary_trace='mean', time_shift='center',
                alpha=0.75, hover_color='#535353', height=350, width=650,
                colors=None):
     """
@@ -90,7 +90,7 @@ def all_traces(df, signal='activity', summary_trace='mean', time_shift='left',
     return p
 
 
-def grid(df, signal='activity', summary_trace='mean', time_shift='left',
+def grid(df, signal='activity', summary_trace='mean', time_shift='center',
          alpha=0.75, hover_color='#535353', height=200, width=650, colors=None):
     """
     Generate a set of plots for each genotype.
@@ -148,7 +148,7 @@ def grid(df, signal='activity', summary_trace='mean', time_shift='left',
     return p
 
 
-def summary(df, signal='activity', summary_trace='mean', time_shift='left',
+def summary(df, signal='activity', summary_trace='mean', time_shift='center',
             confint=True, ptiles=(2.5, 97.5), n_bs_reps=1000, alpha=0.35,
             height=350, width=650, colors=None, legend=True):
     """

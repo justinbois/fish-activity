@@ -44,7 +44,7 @@ if __name__ == '__main__':
                         dest='summary_trace', default='mean',
                         help="Which summary statistic to compute, choose from [mean, median, max, min, none], default is mean.")
     parser.add_argument('--timeshift', '-t', action='store',
-                        dest='time_shift', default='left',
+                        dest='time_shift', default='center',
                         help="Which part of time interval is used in plot; acceptable values: [left, right, center, interval], default is left.")
     parser.add_argument('--ignoregtype', '-i', action='store_true',
                         dest='ignore_gtype', default=False,
