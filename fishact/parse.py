@@ -10,8 +10,8 @@ import pandas as pd
 import numba
 
 
-def tidy_data(activity_name, genotype_name, out_name, lights_on, lights_off,
-              day_in_the_life, resample_win=1, extra_cols=[],
+def tidy_data(activity_name, genotype_name, out_name, lights_on='9:00:00',
+                  lights_off='23:00:00', day_in_the_life=4, resample_win=1, extra_cols=[],
               rename={'middur': 'activity'}):
     """
     Load in activity data and write tidy data file.
@@ -32,11 +32,13 @@ def tidy_data(activity_name, genotype_name, out_name, lights_on, lights_off,
           corresponding to each genotype.
     out_name : string
         Name of file to write tidy DataFrame to.
-    lights_on : string or datetime.time instance
+    lights_on : string or datetime.time instance, default '9:00:00'
         The time where lights come on each day, e.g., '9:00:00'.
-    lights_off: string or datetime.time instance
+    lights_off: string or datetime.time, or None, default '23:00:00'
         The time where lights go off each day, e.g., '23:00:00'.
-    day_in_the_life : int
+        If None, the 'light' column is all True, meaning we are not
+        keeping track of lighting.
+    day_in_the_life : int, default 4
         The day in the life of the embryos when data acquisition
         started.
     resample_win : int, default 1
@@ -135,7 +137,8 @@ def load_gtype(fname, delimiter='\t', comment='#', double_header=True,
     return df
 
 
-def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
+def load_activity(fname, genotype_fname, lights_on='9:00:00',
+                  lights_off='23:00:00', day_in_the_life=4,
                   extra_cols=[], rename={'middur': 'activity'}):
     """
     Load in activity CSV file to tidy DateFrame
@@ -154,11 +157,13 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
           'tph2-/- (n=20)', and we do not need the ' (n=20)'.
         - Subsequent rows containg wells in the 96 well plate
           corresponding to each genotype.
-    lights_on : string or datetime.time instance
+    lights_on : string or datetime.time instance, default '9:00:00'
         The time where lights come on each day, e.g., '9:00:00'.
-    lights_off: string or datetime.time instance
+    lights_off: string or datetime.time, or None, default '23:00:00'
         The time where lights go off each day, e.g., '23:00:00'.
-    day_in_the_life : int
+        If None, the 'light' column is all True, meaning we are not
+        keeping track of lighting.
+    day_in_the_life : int, default 4
         The day in the life of the embryos when data acquisition
         started.
     extra_cols : list, default []
@@ -196,7 +201,7 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
     # Convert lights_on and lights_off to datetime.time objects
     if type(lights_on) != datetime.time:
         lights_on = pd.to_datetime(lights_on).time()
-    if type(lights_off) != datetime.time:
+    if type(lights_off) != datetime.time and lights_off is not None:
         lights_off = pd.to_datetime(lights_off).time()
 
     # Get genotype information
@@ -235,8 +240,11 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
     df['exp_time'] = df['start'] / 3600
 
     # Determine light or dark
-    clock = pd.DatetimeIndex(df['time']).time
-    df['light'] = np.logical_and(clock >= lights_on, clock < lights_off)
+    if lights_off is None:
+        df['light'] = [True] * len(df)
+    else:
+        clock = pd.DatetimeIndex(df['time']).time
+        df['light'] = np.logical_and(clock >= lights_on, clock < lights_off)
 
     # Which day it is (remember, day goes lights on to lights on)
     df['day'] = pd.DatetimeIndex(
@@ -276,7 +284,7 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
 
 
 def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
-                                 day_in_the_life=5):
+                                 day_in_the_life=4):
     """
     Load activity data into tidy DataFrame from Prober lab Perl script.
 
