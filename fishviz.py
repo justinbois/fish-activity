@@ -38,7 +38,7 @@ if __name__ == '__main__':
                           dest='lights_off', default='23:00:00',
                 help='Time that lights go off, e.g., 23:00:00 (default)')
     parser.add_argument('--startday', '-D', action='store',
-                        dest='day_in_the_life', default=5,
+                        dest='day_in_the_life', default=4,
             help="Day in zebrafish's life that experiment began (default 5)" )
     parser.add_argument('--stat', '-S', action='store',
                         dest='summary_trace', default='mean',
