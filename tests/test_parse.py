@@ -68,7 +68,7 @@ def test_resample():
          'exp_ind': np.concatenate((np.arange(10), np.arange(10))).astype(int),
          'activity': np.concatenate((np.arange(10),
                                      np.arange(10, 20))).astype(float),
-         'light': [True]*10 + [False]*10,
+         'light': [True]*5 + [False]*5 + [True]*5 + [False]*5,
          'day': 5*np.ones(20, dtype=int),
          'genotype': ['wt']*20,
          'time': pd.to_datetime(['2017-03-30 14:00:00',
@@ -89,9 +89,25 @@ def test_resample():
          'day': 5*np.ones(4, dtype=int),
          'fish': np.array([1, 1, 2, 2], dtype=int),
          'genotype': ['wt']*4,
-         'light': [True, True, False, False],
+         'light': [True, False, True, False],
          'time': pd.to_datetime(['2017-03-30 14:00:00',
                                  '2017-03-30 14:05:00']*2),
          'exp_time': np.array([0., 5., 0., 5.]),
          'exp_ind': np.array([0, 5, 0, 5], dtype=int)})
+    assert_frame_equal(re_df, correct_df)
+
+    re_df = fishact.parse.resample(df, 3, quiet=True)
+    re_df = re_df.reindex_axis(sorted(re_df.columns), axis=1)
+    correct_df = pd.DataFrame(
+        {'activity': np.array([3., 10.5, 18., 25.5, 33., 40.5, 48., 55.5]),
+         'day': 5*np.ones(8, dtype=int),
+         'fish': np.array([1, 1, 1, 1, 2, 2, 2, 2], dtype=int),
+         'genotype': ['wt']*8,
+         'light': [True, True, False, False, True, True, False, False],
+         'time': pd.to_datetime(['2017-03-30 14:00:00',
+                                 '2017-03-30 14:03:00',
+                                 '2017-03-30 14:05:00',
+                                 '2017-03-30 14:08:00']*2),
+         'exp_time': np.array([0., 3., 5., 8., 0., 3., 5., 8.]),
+         'exp_ind': np.array([0, 3, 5, 8, 0, 3, 5, 8], dtype=int)})
     assert_frame_equal(re_df, correct_df)
