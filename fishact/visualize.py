@@ -3,7 +3,7 @@ import pandas as pd
 
 import tsplot
 
-def get_y_axis_label(df):
+def get_y_axis_label(df, signal):
     """
     Generate y-label for visualizations.
 
@@ -12,6 +12,8 @@ def get_y_axis_label(df):
     df : pandas DataFrame
         Tidy DataFrame as loaded from parse.load_data() or returned
         from parse.resample().
+    signal : string
+        String for what is on the y-axis
 
     Returns
     -------
@@ -26,13 +28,14 @@ def get_y_axis_label(df):
 
     # Make y-axis label
     if 0.05 <= abs(dt - int(dt)) <= 0.95:
-        return 'sec. of act. in {0:.2f} min.'.format(dt)
+        return 'sec. of {0:s} in {1:.2f} min.'.format(signal, dt)
     else:
-        return 'sec. of act. in {0:d} min.'.format(int(np.round(dt)))
+        return 'sec. of {0:s} in {1:d} min.'.format(signal, int(np.round(dt)))
 
 
-def all_traces(df, summary_trace='mean', time_shift='left',  alpha=0.75,
-               hover_color='#535353', height=350, width=650, colors=None):
+def all_traces(df, signal='activity', summary_trace='mean', time_shift='left',
+               alpha=0.75, hover_color='#535353', height=350, width=650,
+               colors=None):
     """
     Generate a set of plots for each genotype.
 
@@ -41,6 +44,8 @@ def all_traces(df, summary_trace='mean', time_shift='left',  alpha=0.75,
     df : pandas DataFrame
         Tidy DataFrame as loaded from parse.load_data() or returned
         from parse.resample().
+    signal : string, default 'activity'
+        Column of `df` that is used for the y-values in the plot.
     summary_trace : string, float, or None, default 'mean'
         Which summary statistic to use to make summary trace. If a
         string, can one of 'mean', 'median', 'max', or 'min'. If
@@ -74,7 +79,7 @@ def all_traces(df, summary_trace='mean', time_shift='left',  alpha=0.75,
         Bokeh figure with subplots of all time series
     """
     # Make y-axis label
-    y_axis_label = get_y_axis_label(df)
+    y_axis_label = get_y_axis_label(df, signal)
 
     # Make plots
     p = tsplot.all_traces(
@@ -85,8 +90,8 @@ def all_traces(df, summary_trace='mean', time_shift='left',  alpha=0.75,
     return p
 
 
-def grid(df, summary_trace='mean', time_shift='left',  alpha=0.75,
-         hover_color='#535353', height=200, width=650, colors=None):
+def grid(df, signal='activity', summary_trace='mean', time_shift='left',
+         alpha=0.75, hover_color='#535353', height=200, width=650, colors=None):
     """
     Generate a set of plots for each genotype.
 
@@ -95,6 +100,8 @@ def grid(df, summary_trace='mean', time_shift='left',  alpha=0.75,
     df : pandas DataFrame
         Tidy DataFrame as loaded from parse.load_data() or returned
         from parse.resample().
+    signal : string, default 'activity'
+        Column of `df` that is used for the y-values in the plot.
     summary_trace : string, float, or None, default 'mean'
         Which summary statistic to use to make summary trace. If a
         string, can one of 'mean', 'median', 'max', or 'min'. If
@@ -129,7 +136,7 @@ def grid(df, summary_trace='mean', time_shift='left',  alpha=0.75,
     """
 
     # Make y-axis label
-    y_axis_label = get_y_axis_label(df)
+    y_axis_label = get_y_axis_label(df, signal)
 
     # Make plots
     p = tsplot.grid(
@@ -141,8 +148,8 @@ def grid(df, summary_trace='mean', time_shift='left',  alpha=0.75,
     return p
 
 
-def summary(df, summary_trace='mean', time_shift='left', confint=True,
-            ptiles=(2.5, 97.5), n_bs_reps=1000, alpha=0.35,
+def summary(df, signal='activity', summary_trace='mean', time_shift='left',
+            confint=True, ptiles=(2.5, 97.5), n_bs_reps=1000, alpha=0.35,
             height=350, width=650, colors=None, legend=True):
     """
     Generate a summary plot of the time courses.
@@ -152,6 +159,8 @@ def summary(df, summary_trace='mean', time_shift='left', confint=True,
     df : pandas DataFrame
         Tidy DataFrame as loaded from parse.load_data() or returned
         from parse.resample().
+    signal : string, default 'activity'
+        Column of `df` that is used for the y-values in the plot.
     summary_trace : string, float, or None, default 'mean'
         Which summary statistic to use to make summary trace. If a
         string, can one of 'mean', 'median', 'max', or 'min'. If
@@ -196,7 +205,7 @@ def summary(df, summary_trace='mean', time_shift='left', confint=True,
     """
 
     # Make y-axis label
-    y_axis_label = get_y_axis_label(df)
+    y_axis_label = get_y_axis_label(df, signal)
 
     p = tsplot.summary(
             df, 'exp_time', 'activity', 'genotype', 'fish',

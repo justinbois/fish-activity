@@ -21,6 +21,8 @@ if __name__ == '__main__':
     parser.add_argument('--out', '-o', action='store', default=None,
                         dest='html_file',
                         help='Name of file to store output. Defaults to the prefix of the activity file name + `.html`.')
+    parser.add_argument('--sleep', '-z', action='store_true', dest='sleep',
+                        help='Select to plot minutes of sleep over time.')
     parser.add_argument('--summary', '-s', action='store_true', dest='summary',
                     help='Select to give summary plot, not plot of all fish.')
     parser.add_argument('--confint', '-c', action='store', dest='confint',
@@ -65,6 +67,12 @@ if __name__ == '__main__':
         conf_size = float(args.confint)
         ptiles = (50-conf_size/2, 50+conf_size/2)
 
+    # What to plot
+    if args.sleep:
+        signal = 'sleep'
+    else:
+        signal = 'activity'
+
     # Parse data Frames
     print('Loading in the data....')
     df = fishact.parse.load_activity(
@@ -82,19 +90,22 @@ if __name__ == '__main__':
     if args.ignore_gtype:
         if args.summary:
             df['genotype'] = ['all combined'] * len(df)
-            p = fishact.visualize.summary(df, summary_trace=args.summary_trace,
+            p = fishact.visualize.summary(
+                    df, signal=signal, summary_trace=args.summary_trace,
                     time_shift=args.time_shift, confint=confint, ptiles=ptiles,
                     legend=False)
         else:
-            p = fishact.visualize.all_traces(df,
+            p = fishact.visualize.all_traces(df, signal=signal,
                 summary_trace=args.summary_trace, time_shift=args.time_shift)
     else:
         if args.summary:
-            p = fishact.visualize.summary(df, summary_trace=args.summary_trace,
+            p = fishact.visualize.summary(
+                    df, signal=signal, summary_trace=args.summary_trace,
                     time_shift=args.time_shift, confint=confint, ptiles=ptiles)
         else:
-            p = fishact.visualize.grid(df, summary_trace=args.summary_trace,
-                                       time_shift=args.time_shift)
+            p = fishact.visualize.grid(
+                    df, signal=signal, summary_trace=args.summary_trace,
+                    time_shift=args.time_shift)
 
     # Save and show HTML file
     bokeh.io.save(p)

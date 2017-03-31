@@ -173,9 +173,13 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
     df : pandas DataFrame
         Tidy DataFrame with columns:
         - activity: The activity as given by the instrument, based
-          on the `middur` columns of the inputted data set
+          on the `middur` columns of the inputted data set. This
+          column may be called 'middur' dependinfg on the `rename`
+          kwarg.
         - time: time in proper datetime format, based on the `sttime`
           column of the inputted data file
+        - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
+          This is convenient for computing sleep when resampling.
         - fish: ID of the fish
         - genotype: genotype of the fish
         - exp_time: Experimental time, based on the `start` column of
@@ -261,6 +265,9 @@ def load_activity(fname, genotype_fname, lights_on, lights_off, day_in_the_life,
                       'light', 'day']
     df = df[cols]
 
+    # Compute sleep
+    df['sleep'] = np.isclose(df['middur'], 0).astype(int)
+
     # Rename columns
     if rename is not None:
         df = df.rename(columns=rename)
@@ -300,6 +307,8 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
         Tidy DataFrame with columns:
         - activity: The activity as given by the instrument, based
           on the `middur` columns of the inputted data set
+        - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
+          This is convenient for computing sleep when resampling.
         - fish: ID of the fish
         - genotype: genotype of the fish
         - exp_time: Experimental time, based on the start of the
@@ -406,6 +415,9 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
                                                     np.sum(df['fish']==fish))
     df['exp_ind'] = df['exp_ind'].astype(int)
 
+    # Compute sleep
+    df['sleep'] = np.isclose(df['activity'], 0).astype(int)
+
     return df
 
 
@@ -468,7 +480,7 @@ def _resample_segment(df, ind_win, signal):
 
 
 
-def resample(df, ind_win, signal=['activity'], quiet=False):
+def resample(df, ind_win, signal=['activity', 'sleep'], quiet=False):
     """
     Resample the DataFrame.
 
