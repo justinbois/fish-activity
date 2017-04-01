@@ -195,7 +195,15 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
           measurement. This is needed for computing averages over
           fish at each time point.
         - light: True if the light is on.
-        - day: The day in the life of the fish
+        - day: The day in the life of the fish. The day begins with
+          `lights_on`.
+
+    Notes
+    -----
+    .. If `lights_off` is `None`, this means we ignore the lighting,
+       but we still want to know what day it is. Specification of
+       `lights_on` says what wall clock time specifies the start of
+       a day.
     """
 
     # Convert lights_on and lights_off to datetime.time objects

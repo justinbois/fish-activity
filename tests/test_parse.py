@@ -70,7 +70,7 @@ def test_resample():
                                      np.arange(10, 20))).astype(float),
          'sleep': np.ones(20, dtype=float),
          'light': [True]*5 + [False]*5 + [True]*5 + [False]*5,
-         'day': 5*np.ones(20, dtype=int),
+         'day': [5]*10 + [6]*10,
          'genotype': ['wt']*20,
          'time': pd.to_datetime(['2017-03-30 14:00:00',
                                  '2017-03-30 14:01:00',
@@ -88,7 +88,7 @@ def test_resample():
     re_df = re_df.reindex_axis(sorted(re_df.columns), axis=1)
     correct_df = pd.DataFrame(
         {'activity': np.array([10., 35., 60., 85.]),
-         'day': 5*np.ones(4, dtype=int),
+         'day': [5, 5, 6, 6],
          'fish': np.array([1, 1, 2, 2], dtype=int),
          'genotype': ['wt']*4,
          'light': [True, False, True, False],
@@ -103,7 +103,7 @@ def test_resample():
     re_df = re_df.reindex_axis(sorted(re_df.columns), axis=1)
     correct_df = pd.DataFrame(
         {'activity': np.array([3., 10.5, 18., 25.5, 33., 40.5, 48., 55.5]),
-         'day': 5*np.ones(8, dtype=int),
+         'day': [5, 5, 5, 5, 6, 6, 6, 6],
          'fish': np.array([1, 1, 1, 1, 2, 2, 2, 2], dtype=int),
          'genotype': ['wt']*8,
          'light': [True, True, False, False, True, True, False, False],

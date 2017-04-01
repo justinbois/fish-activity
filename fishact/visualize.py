@@ -83,7 +83,7 @@ def all_traces(df, signal='activity', summary_trace='mean', time_shift='center',
 
     # Make plots
     p = tsplot.all_traces(
-            df, 'exp_time', 'activity', 'fish', time_ind='exp_ind',
+            df, 'exp_time', signal, 'fish', time_ind='exp_ind',
             light='light', summary_trace='mean', time_shift=time_shift,
             alpha=0.75, x_axis_label='time (hr)', y_axis_label=y_axis_label)
 
@@ -140,7 +140,7 @@ def grid(df, signal='activity', summary_trace='mean', time_shift='center',
 
     # Make plots
     p = tsplot.grid(
-            df, 'exp_time', 'activity', 'genotype', 'fish',
+            df, 'exp_time', signal, 'genotype', 'fish',
             time_ind='exp_ind', light='light', summary_trace=summary_trace,
             time_shift=time_shift, height=height, width=width,
             x_axis_label='time (hr)', y_axis_label=y_axis_label, colors=colors)
@@ -208,7 +208,7 @@ def summary(df, signal='activity', summary_trace='mean', time_shift='center',
     y_axis_label = get_y_axis_label(df, signal)
 
     p = tsplot.summary(
-            df, 'exp_time', 'activity', 'genotype', 'fish',
+            df, 'exp_time', signal, 'genotype', 'fish',
             time_ind='exp_ind', light='light', summary_trace=summary_trace,
             time_shift=time_shift, confint=confint, ptiles=ptiles,
             n_bs_reps=n_bs_reps, alpha=0.25, height=height, width=width,
