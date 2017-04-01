@@ -3,7 +3,7 @@ import pandas as pd
 
 import tsplot
 
-def get_y_axis_label(df, signal):
+def get_y_axis_label(df, signal, time_unit=None):
     """
     Generate y-label for visualizations.
 
@@ -21,13 +21,11 @@ def get_y_axis_label(df, signal):
         y-axis label.
     """
 
-    if signal == 'sleep':
-        time_unit = 'min.'
-    elif signal == 'activity':
-        time_unit = 'sec.'
-    else:
-        raise RuntimeError(
-                    "Invalid signal, must be either 'sleep' or 'activity'.")
+    if time_unit is None:
+        if signal == 'sleep':
+            time_unit = 'min.'
+        elif signal == 'activity':
+            time_unit = 'sec.'
 
     # Get approximate time interval of averages
     inds = df['fish']==df['fish'].unique()[0]
