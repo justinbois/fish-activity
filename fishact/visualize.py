@@ -36,7 +36,7 @@ def get_y_axis_label(df, signal, time_unit=None):
     if 0.05 <= abs(dt - int(dt)) <= 0.95:
         return '{0:s} of {1:s} in {2:.2f} min.'.format(time_unit, signal, dt)
     else:
-        return '{0:s} of {1:s} in {2:d} min.'.format(signal, time_unit,
+        return '{0:s} of {1:s} in {2:d} min.'.format(time_unit, signal,
                                                      int(np.round(dt)))
 
 
