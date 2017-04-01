@@ -21,6 +21,14 @@ def get_y_axis_label(df, signal):
         y-axis label.
     """
 
+    if signal == 'sleep':
+        time_unit = 'min.'
+    elif signal == 'activity':
+        time_unit = 'sec.'
+    else:
+        raise RuntimeError(
+                    "Invalid signal, must be either 'sleep' or 'activity'.")
+
     # Get approximate time interval of averages
     inds = df['fish']==df['fish'].unique()[0]
     exp_time = np.sort(df.loc[inds, 'exp_time'].values)
@@ -28,9 +36,10 @@ def get_y_axis_label(df, signal):
 
     # Make y-axis label
     if 0.05 <= abs(dt - int(dt)) <= 0.95:
-        return 'sec. of {0:s} in {1:.2f} min.'.format(signal, dt)
+        return '{0:s} of {1:s} in {2:.2f} min.'.format(time_unit, signal, dt)
     else:
-        return 'sec. of {0:s} in {1:d} min.'.format(signal, int(np.round(dt)))
+        return '{0:s} of {1:s} in {1:d} min.'.format(signal, time_unit,
+                                                     int(np.round(dt)))
 
 
 def all_traces(df, signal='activity', summary_trace='mean', time_shift='center',
