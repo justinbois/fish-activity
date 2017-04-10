@@ -1,3 +1,10 @@
+import collections
+
+try:
+    import tqdm
+except:
+    pass
+
 import numpy as np
 import pandas as pd
 import numba
@@ -9,21 +16,61 @@ def _compute_bouts(df, rest=True):
     Parameters
     ----------
     df : pandas DataFrame
-        Minimally with columns 'sleep', 'day', 'light', 'exp_time', 'time'.
+        Tidy DataFrame, as outputted by fishact.parse.load_activity(),
+        containing the following columns:
+        - activity: The activity as given by the instrument, based
+          on the `middur` columns of the inputted data set. This
+          column may be called 'middur' dependinfg on the `rename`
+          kwarg.
+        - time: time in proper datetime format, based on the `sttime`
+          column of the inputted data file
+        - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
+          This is convenient for computing sleep when resampling.
+        - fish: ID of the fish
+        - genotype: genotype of the fish
+        - exp_time: Experimental time, based on the `start` column of
+            the inputted data file
+        - exp_ind: an index for the experimental time. Because of some
+          errors in the acquisition, sometimes the times do not
+          perfectly line up. exp_ind is just the index of the
+          measurement. This is needed for computing averages over
+          fish at each time point.
+        - light: True if the light is on.
+        - day: The day in the life of the fish. The day begins with
+          `lights_on`.
 
     Returns
     -------
-    output : float
-        sleep latency in units of experimental time (hours)
+    output : pandas DataFrame
+        Tidy DataFrame, with the following columns:
+        - fish: ID of the fish
+        - genotype: genotype of the fish
+        - day_start: Start day of bout
+        - day_end: End day of bout
+        - light_start: True if light is on at start of bout.
+        - light_end: True if light is on at end of bout.
+        - bout_start_exp: Time of start of bout since the
+            beginning of the experiment (usually in units of hours).
+        - bout_end_exp: Time of end of bout since the
+            beginning of the experiment (usually in units of hours).
+        - bout_start_clock: Wall clock time of start of bout.
+        - bout_end_clock: Wall clock time of the end of bout.
+        - bout_length: Length of the bout in same units as
+            experimental time.
 
     Notes
     -----
     .. We do not consider bouts at the beginning or end of an
        experiment.
+
+    .. This calculation is currently very slow because we do not
+       take advantage of ordering of the time series and index
+       pandas DataFrames very often and keep appending DataFrames.
     """
 
     # Output DataFrame
-    cols = {'day_start': int,
+    cols = collections.OrderedDict(
+           {'day_start': int,
             'day_end': int,
             'light_start': bool,
             'light_end': bool,
@@ -31,7 +78,7 @@ def _compute_bouts(df, rest=True):
             'bout_end_exp': float,
             'bout_start_clock': '<M8[ns]',
             'bout_end_clock': '<M8[ns]',
-            'bout_length': float}
+            'bout_length': float})
     df_out = pd.DataFrame(columns=[key for key in cols])
 
     # Get Boolean NumPy array for sleep
@@ -126,6 +173,105 @@ def _sleep_latency(df):
         return np.nan
 
     return sleep_mins['exp_time'].min() - first_awake_min
+
+
+def bouts(df, rest=True, quiet=False):
+    """
+    Compute bouts for rest of activity.
+
+    Parameters
+    ----------
+    df : pandas DataFrame
+        Tidy DataFrame, as outputted by fishact.parse.load_activity(),
+        containing the following columns:
+        - activity: The activity as given by the instrument, based
+          on the `middur` columns of the inputted data set. This
+          column may be called 'middur' dependinfg on the `rename`
+          kwarg.
+        - time: time in proper datetime format, based on the `sttime`
+          column of the inputted data file
+        - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
+          This is convenient for computing sleep when resampling.
+        - fish: ID of the fish
+        - genotype: genotype of the fish
+        - exp_time: Experimental time, based on the `start` column of
+            the inputted data file
+        - exp_ind: an index for the experimental time. Because of some
+          errors in the acquisition, sometimes the times do not
+          perfectly line up. exp_ind is just the index of the
+          measurement. This is needed for computing averages over
+          fish at each time point.
+        - light: True if the light is on.
+        - day: The day in the life of the fish. The day begins with
+          `lights_on`.
+    rest : bool, default True
+        True if rest bouts are being computed. False if active
+        bouts are being computed.
+    quiet : bool, default False
+        If True, do not show progress bar.
+
+    Returns
+    -------
+    output : pandas DataFrame
+        Tidy DataFrame, with the following columns:
+        - fish: ID of the fish
+        - genotype: genotype of the fish
+        - day_start: Start day of bout
+        - day_end: End day of bout
+        - light_start: True if light is on at start of bout.
+        - light_end: True if light is on at end of bout.
+        - bout_start_exp: Time of start of bout since the
+            beginning of the experiment (usually in units of hours).
+        - bout_end_exp: Time of end of bout since the
+            beginning of the experiment (usually in units of hours).
+        - bout_start_clock: Wall clock time of start of bout.
+        - bout_end_clock: Wall clock time of the end of bout.
+        - bout_length: Length of the bout in same units as
+            experimental time.
+
+    Notes
+    -----
+    .. We do not consider bouts at the beginning or end of an
+       experiment.
+    """
+    # Output DataFrame
+    cols = collections.OrderedDict(
+           {'fish': int,
+            'genotype': str,
+            'day_start': int,
+            'day_end': int,
+            'light_start': bool,
+            'light_end': bool,
+            'bout_start_exp': float,
+            'bout_end_exp': float,
+            'bout_start_clock': '<M8[ns]',
+            'bout_end_clock': '<M8[ns]',
+            'bout_length': float})
+    df_out = pd.DataFrame(columns=[key for key in cols])
+
+    # Set up progress bar
+    if not quiet:
+        print('Performing bout calculation....')
+        try:
+            iterator = tqdm.tqdm(df['fish'].unique())
+        except:
+            iterator = df['fish'].unique()
+    else:
+        iterator = df['fish'].unique()
+
+    # Loop through fish and populate output DataFrame
+    for fish in iterator:
+        df_fish = df.loc[df['fish']==fish, :]
+        df_bout = _compute_bouts(df_fish, rest=rest)
+        df_bout['fish'] = fish
+        df_bout['genotype'] = df_fish['genotype'].iloc[0]
+        df_out = df_out.append(df_bout, ignore_index=True)
+
+    # Ensure data types
+    for col, dtype in cols.items():
+        df_out[col] = df_out[col].astype(dtype)
+
+    return df_out
 
 
 def total_activity_sleep(df):
