@@ -139,7 +139,8 @@ def load_gtype(fname, delimiter='\t', comment='#', double_header=True,
 
 def load_activity(fname, genotype_fname, lights_on='9:00:00',
                   lights_off='23:00:00', day_in_the_life=4,
-                  extra_cols=[], rename={'middur': 'activity'}):
+                  wake_threshold=1e-5, extra_cols=[],
+                  rename={'middur': 'activity'}):
     """
     Load in activity CSV file to tidy DateFrame
 
@@ -166,6 +167,9 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
     day_in_the_life : int, default 4
         The day in the life of the embryos when data acquisition
         started.
+    wake_threshold : float, default 1e-5
+        Threshold number of seconds per minute that the fish moved
+        to be considered awake.
     extra_cols : list, default []
         List of extra columns to keep from the input file, e.g.,
         ['frect', 'fredur']. By default, only time, fish ID, and
@@ -282,7 +286,7 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
     df = df[cols]
 
     # Compute sleep
-    df['sleep'] = np.isclose(df['middur'], 0).astype(int)
+    df['sleep'] = (df['middur'] > wake_threshold).astype(int)
 
     # Rename columns
     if rename is not None:
@@ -292,7 +296,7 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
 
 
 def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
-                                 day_in_the_life=4):
+                                 wake_threshold=1e-5, day_in_the_life=4):
     """
     Load activity data into tidy DataFrame from Prober lab Perl script.
 
@@ -313,6 +317,9 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
     lights_off : float, default 14.0
         The time where lights come on each day according to the
         Zeitgeber time, in units of hours.
+    wake_threshold : float, default 1e-5
+        Threshold number of seconds per minute that the fish moved
+        to be considered awake.
     day_in_the_life : int
         The day in the life of the embryos when data acquisition
         started.
@@ -432,7 +439,7 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
     df['exp_ind'] = df['exp_ind'].astype(int)
 
     # Compute sleep
-    df['sleep'] = np.isclose(df['activity'], 0).astype(int)
+    df['sleep'] = (df['middur'] > wake_threshold).astype(int)
 
     return df
 
