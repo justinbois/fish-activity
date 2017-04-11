@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import numba
 
+
 def _compute_bouts(df, rest=True):
     """
     Compute bout lengths for either sleep or active bouts.
@@ -68,7 +69,7 @@ def _compute_bouts(df, rest=True):
        pandas DataFrames very often and keep appending DataFrames.
     """
 
-    # Output DataFrame
+    # Output DataFrame columns
     cols = collections.OrderedDict(
            {'day_start': int,
             'day_end': int,
@@ -79,7 +80,6 @@ def _compute_bouts(df, rest=True):
             'bout_start_clock': '<M8[ns]',
             'bout_end_clock': '<M8[ns]',
             'bout_length': float})
-    df_out = pd.DataFrame(columns=[key for key in cols])
 
     # Get Boolean NumPy array for sleep
     sleep = df['sleep'].values.astype(bool)
@@ -89,7 +89,7 @@ def _compute_bouts(df, rest=True):
 
     # Make sure there is a bout to include
     if len(switches) < 2:
-        return df_out
+        return pd.DataFrame(columns=cols.keys())
 
     # Is fish starting out and ending asleep?
     start_asleep = bool(df['sleep'].iloc[0])
@@ -109,19 +109,35 @@ def _compute_bouts(df, rest=True):
             iterator = range(1, len(switches)-1, 2)
 
     # Build DataFrame
-    for i in iterator:
-        ind1 = df.index[switches[i]]
-        ind2 = df.index[switches[i+1]]
-        new_row = {'day_start': df.loc[ind1, 'day'],
-                   'day_end': df.loc[ind2, 'day'],
-                   'light_start': df.loc[ind1, 'light'],
-                   'light_end': df.loc[ind2, 'light'],
-                   'bout_start_exp': df.loc[ind1, 'exp_time'],
-                   'bout_end_exp': df.loc[ind2, 'exp_time'],
-                   'bout_start_clock': df.loc[ind1, 'time'],
-                   'bout_end_clock': df.loc[ind2, 'time'],
-            'bout_length': df.loc[ind2, 'exp_time'] - df.loc[ind1, 'exp_time']}
-        df_out = df_out.append(new_row, ignore_index=True)
+    n_records = len(iterator)
+    c = ['day', 'light', 'exp_time', 'time']
+    new_data = collections.OrderedDict({
+               'day_start': np.empty(n_records, dtype=int),
+               'day_end': np.empty(n_records, dtype=int),
+               'light_start': np.empty(n_records, dtype=bool),
+               'light_end': np.empty(n_records, dtype=bool),
+               'bout_start_exp': np.empty(n_records, dtype=float),
+               'bout_end_exp': np.empty(n_records, dtype=float),
+               'bout_start_clock': [],
+               'bout_end_clock': [],
+               'bout_length': np.empty(n_records, dtype=float)})
+    for i, j in enumerate(iterator):
+        ind1 = df.index[switches[j]]
+        ind2 = df.index[switches[j+1]]
+        day_start, light_start, bout_start_exp, bout_start_clock = df.loc[ind1,
+                                                                          c]
+        day_end, light_end, bout_end_exp, bout_end_clock = df.loc[ind2, c]
+        new_data['day_start'][i] = day_start
+        new_data['day_end'][i] = day_end
+        new_data['light_start'][i] = light_start
+        new_data['light_end'][i] = light_end
+        new_data['bout_start_exp'][i] = bout_start_exp
+        new_data['bout_end_exp'][i] = bout_end_exp
+        new_data['bout_start_clock'].append(bout_start_clock)
+        new_data['bout_end_clock'].append(bout_end_clock)
+        new_data['bout_length'][i] = bout_end_exp - bout_start_exp
+
+    df_out = pd.DataFrame(new_data)
 
     # Ensure data types
     for col, dtype in cols.items():
