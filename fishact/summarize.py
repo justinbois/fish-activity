@@ -99,45 +99,31 @@ def _compute_bouts(df, rest=True):
     # Equiv. to range(int(not(start_asleep ^ rest)), len(switches-1), 2)
     if start_asleep:
         if rest:
-            iterator = range(1, len(switches)-1, 2)
+            i = np.arange(1, len(switches)-1, 2, dtype=int)
         else:
-            iterator = range(0, len(switches)-1, 2)
+            i = np.arange(0, len(switches)-1, 2, dtype=int)
     else:
         if rest:
-            iterator = range(0, len(switches)-1, 2)
+            i = np.arange(0, len(switches)-1, 2, dtype=int)
         else:
-            iterator = range(1, len(switches)-1, 2)
+            i = np.arange(1, len(switches)-1, 2, dtype=int)
 
-    # Build DataFrame
-    n_records = len(iterator)
-    c = ['day', 'light', 'exp_time', 'time']
-    new_data = collections.OrderedDict({
-               'day_start': np.empty(n_records, dtype=int),
-               'day_end': np.empty(n_records, dtype=int),
-               'light_start': np.empty(n_records, dtype=bool),
-               'light_end': np.empty(n_records, dtype=bool),
-               'bout_start_exp': np.empty(n_records, dtype=float),
-               'bout_end_exp': np.empty(n_records, dtype=float),
-               'bout_start_clock': [],
-               'bout_end_clock': [],
-               'bout_length': np.empty(n_records, dtype=float)})
-    for i, j in enumerate(iterator):
-        ind1 = df.index[switches[j]]
-        ind2 = df.index[switches[j+1]]
-        day_start, light_start, bout_start_exp, bout_start_clock = df.loc[ind1,
-                                                                          c]
-        day_end, light_end, bout_end_exp, bout_end_clock = df.loc[ind2, c]
-        new_data['day_start'][i] = day_start
-        new_data['day_end'][i] = day_end
-        new_data['light_start'][i] = light_start
-        new_data['light_end'][i] = light_end
-        new_data['bout_start_exp'][i] = bout_start_exp
-        new_data['bout_end_exp'][i] = bout_end_exp
-        new_data['bout_start_clock'].append(bout_start_clock)
-        new_data['bout_end_clock'].append(bout_end_clock)
-        new_data['bout_length'][i] = bout_end_exp - bout_start_exp
+    # Pull out indices of switches
+    c = ['day', 'light', 'time', 'exp_time']
+    df_switch = df.loc[df.index[switches], c].copy().reset_index(drop=True)
 
-    df_out = pd.DataFrame(new_data)
+    # Build output array
+    df_out = pd.DataFrame(columns=cols.keys())
+    df_out['day_start'] = df_switch.loc[i, 'day'].values
+    df_out['day_end'] = df_switch.loc[i+1, 'day'].values
+    df_out['light_start'] = df_switch.loc[i, 'light'].values
+    df_out['light_end'] = df_switch.loc[i+1, 'light'].values
+    df_out['bout_start_exp'] = df_switch.loc[i, 'exp_time'].values
+    df_out['bout_end_exp'] = df_switch.loc[i+1, 'exp_time'].values
+    df_out['bout_start_clock'] = df_switch.loc[i, 'time'].values
+    df_out['bout_end_clock'] = df_switch.loc[i+1, 'time'].values
+    df_out['bout_length'] = df_switch.loc[i+1, 'exp_time'].values - \
+                df_switch.loc[i, 'exp_time'].values
 
     # Ensure data types
     for col, dtype in cols.items():
