@@ -286,7 +286,7 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
     df = df[cols]
 
     # Compute sleep
-    df['sleep'] = (df['middur'] > wake_threshold).astype(int)
+    df['sleep'] = (df['middur'] < wake_threshold).astype(int)
 
     # Rename columns
     if rename is not None:
@@ -439,7 +439,7 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
     df['exp_ind'] = df['exp_ind'].astype(int)
 
     # Compute sleep
-    df['sleep'] = (df['middur'] > wake_threshold).astype(int)
+    df['sleep'] = (df['middur'] < wake_threshold).astype(int)
 
     return df
 
