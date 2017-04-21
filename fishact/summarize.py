@@ -139,7 +139,8 @@ def _sleep_latency(df):
     Parameters
     ----------
     df : pandas DataFrame
-        Minimally with columns 'sleep' and 'exp_time'.
+        Minimally with columns 'sleep' and 'exp_time'. Finds the first
+        minute of sleep.
 
     Returns
     -------
@@ -276,7 +277,7 @@ def bouts(df, rest=True, quiet=False):
     return df_out
 
 
-def total_activity_sleep(df):
+def daily_summary(df):
     """
     Make a summary DataFrame of fish activity and sleep
 
@@ -319,8 +320,9 @@ def total_activity_sleep(df):
         - sleep: Total minues of sleep in time period
     """
     gb = df.groupby(['fish', 'genotype', 'day', 'light'])
-    return gb['activity', 'sleep'].sum().reset_index()
-
+    df_sum = gb['activity', 'sleep'].sum()
+    df_sum['latency'] = gb['sleep', 'exp_time'].apply(_sleep_latency)
+    return df_sum.reset_index()
 
 
 def _column_tup_to_str(ind):
@@ -345,6 +347,8 @@ def _column_tup_to_str(ind):
         string = 'total seconds of activity in '
     elif ind[0] == 'sleep':
         string = 'total minutes of sleep in '
+    elif ind[0] == 'latency':
+        string = 'minutes of sleep latency in '
     else:
         raise RuntimeError('%s is invalid MultiIndex' % ind[0])
 
@@ -354,29 +358,34 @@ def _column_tup_to_str(ind):
         return string + 'night ' + str(ind[1])
 
 
-def write_total_activity_sleep(df, outfile):
+def write_daily_summary(df, outfile):
     """
-    Write a CSV file with summary of
+    Write a CSV file with summary of daily statistics.
     """
     # Make sure all columns are there
     for col in ['activity', 'sleep', 'fish', 'genotype', 'light', 'day']:
         if col not in df.columns:
             raise RuntimeError('%s missing from input DataFrame' % col)
 
-    # Make new DataFrame with sum of activity and sleep for each fish
-    sum_df = pd.pivot_table(df, index=['fish', 'genotype'],
-                            values=['activity', 'sleep'],
-                            columns=['day', 'light'], aggfunc=np.sum)
+    # Compute summary stats
+    df_sum = daily_summary(df)
+    df_sum['latency'] *= 60
+
+    # Pivot
+    df_sum = pd.pivot_table(df_sum, index=['fish', 'genotype'],
+                            values=['activity', 'sleep', 'latency'],
+                            columns=['day', 'light'])
 
     # Set column names and sort for activity, day, day/night
-    sum_df.columns.set_names(['signal', 'day', 'light'], inplace=True)
-    sum_df.sort_index(axis=1, level=['signal', 'day', 'light'],
+    df_sum.columns.set_names(['signal', 'day', 'light'], inplace=True)
+    df_sum.sort_index(axis=1, level=['signal', 'day', 'light'],
                       ascending=[True, True, False], inplace=True)
 
     # Sort by genotype and then fish ID
-    sum_df.sort_index(axis=0, level=['genotype', 'fish'], inplace=True)
+    df_sum.sort_index(axis=0, level=['genotype', 'fish'], inplace=True)
 
     # Rename the column headings from the MultiIndex
-    sum_df.columns = [_column_tup_to_str(ind) for ind in sum_df.columns]
+    df_sum.columns = [_column_tup_to_str(ind) for ind in df_sum.columns]
 
-    return sum_df
+    # Write summary CSV
+    df_sum.to_csv(outfile, index=False, float_format='%.4f')
