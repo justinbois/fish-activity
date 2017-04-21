@@ -91,7 +91,7 @@ def _ecdf_conventional(data, buff=0.1, min_x=None, max_x=None):
         max_x = np.inf
 
     # Get x and y values for data points
-    x, y = _ecdf(data)
+    x, y = _ecdf_dots(data)
 
     # Set up output arrays
     x_conv = np.empty(2*(len(x) + 1))
