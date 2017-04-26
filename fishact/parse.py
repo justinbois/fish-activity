@@ -1,4 +1,6 @@
+import csv
 import datetime
+import warnings
 
 try:
     import tqdm
@@ -10,9 +12,64 @@ import pandas as pd
 import numba
 
 
+def _sniff_file_info(fname, comment='#', check_header=True, quiet=False):
+    """
+    Infer number of header rows and delimiter of a file.
+
+    Parameters
+    ----------
+    fname : string
+        CSV file containing the genotype information.
+    comment : string, default '#'
+        Character that starts a comment row.
+    check_header : bool, default True
+        If True, check number of header rows, assuming a row
+        that begins with a non-digit character is header.
+    quiet : bool, default False
+        If True, suppress output to screen.
+
+    Returns
+    -------
+    n_header : int or None
+        Number of header rows. None is retured if `check_header`
+        is False.
+    delimiter : str
+        Inferred delimiter
+    line : str
+        The first line of data in the file.
+    """
+    with open(fname, 'r') as f:
+        # Read through comments
+        line = f.readline()
+        while line != '' and line[0] == comment:
+            line = f.readline()
+
+        # Read through header, counting rows
+        if check_header:
+            n_header = 0
+            while line != '' and (not line[0].isdigit()):
+                line = f.readline()
+                n_header += 1
+        else:
+            n_header = None
+
+        if line == '':
+            delimiter = None
+            if not quiet:
+                print('Unable to determine delimiter, returning None')
+        else:
+            delimiter = csv.Sniffer().sniff(line).delimiter
+            # Get first line of data
+            line = f.readline()
+
+    # Return number of header rows and delimiter
+    return n_header, delimiter, line
+
+
 def tidy_data(activity_name, genotype_name, out_name, lights_on='9:00:00',
-                  lights_off='23:00:00', day_in_the_life=4, resample_win=1, extra_cols=[],
-              rename={'middur': 'activity'}):
+              lights_off='23:00:00', day_in_the_life=4, resample_win=1,
+              extra_cols=[], wake_threshold=1e-5, rename={'middur': 'activity'},
+              gtype_double_header=None, gtype_rstrip=False):
     """
     Load in activity data and write tidy data file.
 
@@ -47,8 +104,24 @@ def tidy_data(activity_name, genotype_name, out_name, lights_on='9:00:00',
         List of extra columns to keep from the input file, e.g.,
         ['frect', 'fredur']. By default, only time, fish ID, and
         activity as measured by 'middur' is kept.
+    wake_threshold : float, default 1e-5
+        Threshold number of seconds per minute that the fish moved
+        to be considered awake.
     rename : dict, default {'middur': 'activity'}
         Dictionary for renaming column headings.
+    comment : string, default '#'
+        Test that begins and comment line in the file
+    gtype_double_header : bool or None, default None
+        If True, the file has a two-line header. The first line
+        is ignored and the second is kept as a header, possibly
+        with stripping using the `rstrip` argument. If False, assume
+        a single header row. If None, infer the header, giving a
+        warning if a double header is inferred.
+    gtype_rstrip : bool, default True
+        If True, strip out all text in genotype name to the right of
+        the last space. This is because the genotype files typically
+        have headers like 'wt (n=22)', and the '(n=22)' is useless.
+
 
     Notes
     -----
@@ -67,14 +140,17 @@ def tidy_data(activity_name, genotype_name, out_name, lights_on='9:00:00',
         - day: The day in the life of the fish
     """
     df = load_data(activity_name, genotype_name, lights_on, lights_off,
-                   day_in_the_life, extra_cols=extra_cols, rename=rename)
+                   day_in_the_life, extra_cols=extra_cols, rename=rename,
+                   wake_threshold=wake_threshold, comment=comment,
+                   gtype_double_header=gtype_double_header,
+                   gtype_rstrip=gtype_rstrip)
     df = resample(df, resample_win)
     df.to_csv(out_name, index=False)
     return None
 
 
-def load_gtype(fname, delimiter='\t', comment='#', double_header=True,
-               rstrip=True):
+def load_gtype(fname, comment='#', double_header=None, rstrip=False,
+               quiet=False):
     """
     Read genotype file into tidy DataFrame
 
@@ -89,19 +165,20 @@ def load_gtype(fname, delimiter='\t', comment='#', double_header=True,
           'tph2-/- (n=20)', and we do not need the ' (n=20)'.
         - Subsequent rows containg wells in the 96 well plate
           corresponding to each genotype.
-    delimiter : string, default '\t'
-        Delimiter of file
     comment : string, default '#'
         Test that begins and comment line in the file
-    double_header : bool, default True
+    double_header : bool or None, default None
         If True, the file has a two-line header. The first line
         is ignored and the second is kept as a header, possibly
-        with stripping using the `rstrip` argument. This is
-        typical of the current Prober lab format.
+        with stripping using the `rstrip` argument. If False, assume
+        a single header row. If None, infer the header, giving a
+        warning if a double header is inferred.
     rstrip : bool, default True
         If True, strip out all text in genotype name to the right of
         the last space. This is because the genotype files typically
         have headers like 'wt (n=22)', and the '(n=22)' is useless.
+    quiet : bool, default False
+        If True, suppress output to screen.
 
     Returns
     -------
@@ -110,15 +187,24 @@ def load_gtype(fname, delimiter='\t', comment='#', double_header=True,
         - fish: ID of fish
         - genotype: genotype of fish
     """
-    # Read in the file
+
+    # Sniff file info
+    n_header, delimiter, _ = _sniff_file_info(fname, check_header=True,
+                                              comment=comment, quiet=True)
+    if double_header is None:
+        if n_header == 2:
+            double_header = True
+            if not quiet:
+                warnings.warn('Inferring two header rows.', RuntimeWarning)
+
     if double_header:
-        df = pd.read_csv(fname, delimiter=delimiter, comment=comment,
-                         header=[0, 1])
+        df = pd.read_csv(fname, comment=comment, header=[0, 1],
+                         delimiter=delimiter)
 
         # Reset the columns to be the second level of indexing
         df.columns = df.columns.get_level_values(1)
     else:
-        df = pd.read_csv(fname, delimiter=delimiter, comment=comment)
+        df = pd.read_csv(fname, comment=comment, delimiter=delimiter)
 
     # Only keep genotype up to last space because sometimes has n
     if rstrip:
@@ -140,7 +226,8 @@ def load_gtype(fname, delimiter='\t', comment='#', double_header=True,
 def load_activity(fname, genotype_fname, lights_on='9:00:00',
                   lights_off='23:00:00', day_in_the_life=4,
                   wake_threshold=1e-5, extra_cols=[],
-                  rename={'middur': 'activity'}):
+                  rename={'middur': 'activity'}, comment='#',
+                  gtype_double_header=None, gtype_rstrip=False):
     """
     Load in activity CSV file to tidy DateFrame
 
@@ -176,6 +263,18 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
         activity as measured by 'middur' is kept.
     rename : dict, default {'middur': 'activity'}
         Dictionary for renaming column headings.
+    comment : string, default '#'
+        Test that begins and comment line in the file
+    gtype_double_header : bool or None, default None
+        If True, the file has a two-line header. The first line
+        is ignored and the second is kept as a header, possibly
+        with stripping using the `rstrip` argument. If False, assume
+        a single header row. If None, infer the header, giving a
+        warning if a double header is inferred.
+    gtype_rstrip : bool, default True
+        If True, strip out all text in genotype name to the right of
+        the last space. This is because the genotype files typically
+        have headers like 'wt (n=22)', and the '(n=22)' is useless.
 
     Returns
     -------
@@ -217,7 +316,8 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
         lights_off = pd.to_datetime(lights_off).time()
 
     # Get genotype information
-    df_gt = load_gtype(genotype_fname)
+    df_gt = load_gtype(genotype_fname, comment=comment,
+                       double_header=gtype_double_header, rstrip=gtype_rstrip)
 
     # Determine which columns to read in
     if extra_cols is None:
@@ -226,8 +326,13 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
     new_cols = list(set(extra_cols) - set(cols))
     usecols = cols + new_cols
 
+    # Sniff out the delimiter, see how many headers, check file not empty
+    _, delimiter, _ = _sniff_file_info(fname, check_header=False,
+                                       comment=comment, quiet=True)
+
     # Read file
-    df = pd.read_csv(fname, usecols=usecols)
+    df = pd.read_csv(fname, usecols=usecols, comment=comment,
+                     delimiter=delimiter)
 
     # Convert location to well number (just drop 'c' in front)
     df = df.rename(columns={'location': 'fish'})

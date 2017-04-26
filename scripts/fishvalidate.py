@@ -7,13 +7,18 @@ import fishact
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Validate data files.')
-    parser.add_argument('fname', metavar='filename', type=str,
-                        help='Name of file to be validated.')
-    parser.add_argument('--gtype', '-g', action='store_true', dest='gtype',
-        help="Flag if file being validated is a genotype file; otherwise activity file.")
+    parser.add_argument('activity_fname', metavar='activity_file', type=str,
+                        help='Name of activity file.')
+    parser.add_argument('gtype_fname', metavar='genotype_file', type=str,
+                        help='Name of genotype file.')
+
     args = parser.parse_args()
 
-    if args.gtype:
-        fishact.validate.test_genotype_file(args.fname)
-    else:
-        fishact.validate.test_activity_file(args.fname, args.gtype)
+    print('------------------------------------------------')
+    print('Checking genotype file...')
+    fishact.validate.test_genotype_file(args.gtype_fname)
+    print('------------------------------------------------\n\n\n')
+    print('------------------------------------------------')
+    print('Checking activity file...')
+    fishact.validate.test_activity_file(args.activity_fname, args.gtype_fname)
+    print('------------------------------------------------')

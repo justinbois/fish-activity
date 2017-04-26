@@ -1,7 +1,9 @@
+import csv
 import numpy as np
 import pandas as pd
 
 from . import parse
+
 
 def test_genotype_file(fname, quiet=False):
     """
@@ -26,15 +28,52 @@ def test_genotype_file(fname, quiet=False):
     if not quiet:
         print()
 
+    # Sniff out the delimiter, see how many headers, check file not empty
+    n_header, delimiter, line = parse._sniff_file_info(
+                    fname, check_header=True, comment='#', quiet=False)
+
+    # Check headers
+    if n_header >= 3:
+        if not quiet:
+            print('ERROR: Genotype file possibly uses wrong comment character.')
+            print('\n***GENOTYPE VALIDATION FAILED***\n')
+        return 1
+    elif n_header == 2:
+        if not quiet:
+            print('Warning: Genotype file probably has two header rows.\n')
+        n_fail += 1
+        header = [0, 1]
+    elif n_header == 0:
+        if not quiet:
+            print('ERROR: Genotype file is probably missing a header.')
+        n_fail += 1
+        header = 'infer'
+    else:
+        header = 'infer'
+
+    # Make sure there is some data
+    if line == '':
+        if not quiet:
+            print('ERROR: Genotype file has no data,\n')
+            print('***GENOTYPE VALIDATION FAILED***\n')
+        return n_fail + 1
+
+    # Check comma delimiting
+    if delimiter != ',':
+        print('ERROR: Genotype file is not comma delimited.\n')
+        n_fail += 1
+
     # Read file
-    df = pd.read_csv(fname, delimiter='\t', comment='#', header=[0, 1])
+    df = pd.read_csv(fname, comment='#', header=header, delimiter=delimiter)
 
     # Reset the columns to be the second level of indexing
-    df.columns = df.columns.get_level_values(1)
+    if header == [0, 1]:
+        df.columns = df.columns.get_level_values(1)
 
-    # Strip the text after the whitespace
-    df.columns = [col[:col.rfind(' ')] if col.rfind(' ') > 0 else col
-                        for col in df.columns]
+    # Make sure there is an omit column
+    if 'omit' not in df.columns:
+        if not quiet:
+            print('ERROR: No `omit` column in genotype file.\n')
 
     # Make sure columns (genotypes) are unique
     dups = df.columns.get_duplicates()
@@ -98,6 +137,20 @@ def test_activity_file(fname, genotype_fname, quiet=False):
 
     # Keep tabs on number of failures.
     n_fail = 0
+
+    # Sniff out the delimiter, see how many headers, check file not empty
+    _, delimiter, line = parse._sniff_file_info(fname, check_header=False,
+                                                comment='#', quiet=False)
+
+    if delimiter != ',':
+        if not quiet:
+            print('ERROR: Activity file is not comma delimited.\n')
+        n_fail += 1
+
+    if line == '':
+        if not quiet:
+            print('ERROR: Activity file has no data.\n')
+        n_fail += 1
 
     # Read in data file
     df = pd.read_csv(fname)
@@ -208,7 +261,8 @@ def test_activity_file(fname, genotype_fname, quiet=False):
         if not quiet:
             print('ERROR: `sttime` and `start` do not match.')
             print('    Maximum `sttime` - `start`:', t_diff.max())
-            print('    Minimum `sttime` - `start`:', t_diff.min())
+            print('    Minimum `sttime` - `start`:',
+                                    t_diff[np.abs(t_diff)>0].min())
             print('       Number of discrepancies:',
                   (~np.isclose(t_diff, 0)).sum())
             print('     Fraction of intervals bad:',
@@ -219,8 +273,42 @@ def test_activity_file(fname, genotype_fname, quiet=False):
     # Count how many unique fish there are
     n_fish = len(df['location'].unique())
 
-    # Now load it in in tidy format
-#    df = parse.load_activity(fname, genotype_fname)
+    # Convert location to well number (just drop 'c' in front)
+    df = df.rename(columns={'location': 'fish'})
+    df['fish'] = df['fish'].str.extract('(\d+)', expand=False).astype(int)
+
+    # Make sure all fish are accounted for in genotype file
+    try:
+        df_g = parse.load_gtype(genotype_fname, quiet=True)
+        test_gtypes = True
+    except:
+        print('ERROR: Cannot open genotype file.\n')
+        n_fail += 1
+        test_gtypes = False
+
+    if test_gtypes:
+        g_set = set(df_g['fish'].unique())
+        a_set = set(df['fish'].unique())
+
+        set_diff = a_set - g_set
+        if set_diff != set():
+            n_fail += 1
+            print('ERROR: Fish [ ', end='')
+            for x in sorted(list(set_diff)):
+                print(x, end=' ')
+            print('] in activity file but not in genotype file.')
+            if 'omit' in df_g.columns:
+                print()
+            else:
+                print('Possibly due to no `omit` column in genotype file.\n')
+
+        set_diff = g_set - a_set
+        if set_diff != set():
+            n_fail += 1
+            print('ERROR: Fish [ ', end='')
+            for x in sorted(list(set_diff)):
+                print(x, end=' ')
+            print('] in genotype file but not in activity file.\n')
 
     if n_fail > 0:
         if not quiet:
