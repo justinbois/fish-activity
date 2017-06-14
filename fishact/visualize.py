@@ -3,7 +3,7 @@ import pandas as pd
 
 import tsplot
 
-def ecdf(data, conventional=False, buff=0.1, min_x=None, max_x=None):
+def ecdf(data, formal=False, buff=0.1, min_x=None, max_x=None):
     """
     Generate `x` and `y` values for plotting an ECDF.
 
@@ -11,19 +11,19 @@ def ecdf(data, conventional=False, buff=0.1, min_x=None, max_x=None):
     ----------
     data : array_like
         Array of data to be plotted as an ECDF.
-    convential : bool, default False
-        If True, generate `x` and `y` values for conventional ECDF.
+    formal : bool, default False
+        If True, generate `x` and `y` values for formal ECDF.
         Otherwise, generate `x` and `y` values for "dot" style ECDF.
     buff : float, default 0.1
         How long the tails at y = 0 and y = 1 should extend as a
         fraction of the total range of the data. Ignored if
-        `conventional` is False.
-    min_x : float, default -np.inf
-        If min_x is greater than extent computed from `buff`, tail at
-        y = 0 extends to min_x. Ignored if `conventional` is False.
-    max_x : float, default -np.inf
-        If max_x is less than extent computed from `buff`, tail at
-        y = 0 extends to max_x. Ignored if `conventional` is False.
+        `formal` is False.
+    min_x : float, default None
+        Minimum value of `x` to include on plot. Overrides `buff`.
+        Ignored if `formal` is False.
+    max_x : float, default None
+        Maximum value of `x` to include on plot. Overrides `buff`.
+        Ignored if `formal` is False.
 
     Returns
     -------
@@ -33,8 +33,8 @@ def ecdf(data, conventional=False, buff=0.1, min_x=None, max_x=None):
         `y` values for plotting
     """
 
-    if conventional:
-        return _ecdf_conventional(data, buff=buff, min_x=min_x, max_x=max_x)
+    if formal:
+        return _ecdf_formal(data, buff=buff, min_x=min_x, max_x=max_x)
     else:
         return _ecdf_dots(data)
 
@@ -58,9 +58,9 @@ def _ecdf_dots(data):
     return np.sort(data), np.arange(1, len(data)+1) / len(data)
 
 
-def _ecdf_conventional(data, buff=0.1, min_x=None, max_x=None):
+def _ecdf_formal(data, buff=0.1, min_x=None, max_x=None):
     """
-    Generate `x` and `y` values for plotting a conventional ECDF.
+    Generate `x` and `y` values for plotting a formal ECDF.
 
     Parameters
     ----------
@@ -69,12 +69,10 @@ def _ecdf_conventional(data, buff=0.1, min_x=None, max_x=None):
     buff : float, default 0.1
         How long the tails at y = 0 and y = 1 should extend as a fraction
         of the total range of the data.
-    min_x : float, default -np.inf
-        If min_x is greater than extent computed from `buff`, tail at
-        y = 0 extends to min_x.
-    max_x : float, default -np.inf
-        If max_x is less than extent computed from `buff`, tail at
-        y = 0 extends to max_x.
+    min_x : float, default None
+        Minimum value of `x` to include on plot. Overrides `buff`.
+    max_x : float, default None
+        Maximum value of `x` to include on plot. Overrides `buff`.
 
     Returns
     -------
@@ -83,33 +81,32 @@ def _ecdf_conventional(data, buff=0.1, min_x=None, max_x=None):
     y : array
         `y` values for plotting
     """
-
-    # Set defaults for min and max tails
-    if min_x is None:
-        min_x = -np.inf
-    if max_x is None:
-        max_x = np.inf
-
     # Get x and y values for data points
     x, y = _ecdf_dots(data)
 
+    # Set defaults for min and max tails
+    if min_x is None:
+        min_x = x[0] - (x[-1] - x[0])*buff
+    if max_x is None:
+        max_x = x[-1] + (x[-1] - x[0])*buff
+
     # Set up output arrays
-    x_conv = np.empty(2*(len(x) + 1))
-    y_conv = np.empty(2*(len(x) + 1))
+    x_formal = np.empty(2*(len(x) + 1))
+    y_formal = np.empty(2*(len(x) + 1))
 
     # y-values for steps
-    y_conv[:2] = 0
-    y_conv[2::2] = y
-    y_conv[3::2] = y
+    y_formal[:2] = 0
+    y_formal[2::2] = y
+    y_formal[3::2] = y
 
     # x- values for steps
-    x_conv[0] = max(min_x, x[0] - (x[-1] - x[0])*buff)
-    x_conv[1] = x[0]
-    x_conv[2::2] = x
-    x_conv[3:-1:2] = x[1:]
-    x_conv[-1] = min(max_x, x[-1] + (x[-1] - x[0])*buff)
+    x_formal[0] = min_x
+    x_formal[1] = x[0]
+    x_formal[2::2] = x
+    x_formal[3:-1:2] = x[1:]
+    x_formal[-1] = max_x
 
-    return x_conv, y_conv
+    return x_formal, y_formal
 
 
 def get_y_axis_label(df, signal, time_unit=None):
