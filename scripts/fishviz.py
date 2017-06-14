@@ -21,10 +21,15 @@ if __name__ == '__main__':
     parser.add_argument('--out', '-o', action='store', default=None,
                         dest='html_file',
                         help='Name of file to store output. Defaults to the prefix of the activity file name + `.html`.')
+    parser.add_argument('--browser', '-b', action='store', default=None,
+                        dest='browser',
+                        help='Which browser to use for displaying plots.')
     parser.add_argument('--sleep', '-z', action='store_true', dest='sleep',
                         help='Select to plot minutes of sleep over time.')
     parser.add_argument('--summary', '-s', action='store_true', dest='summary',
                     help='Select to give summary plot, not plot of all fish.')
+    parser.add_argument('--svg', '-g', action='store_true', dest='svg',
+                    help='Save traces as SVG as well as HTML.')
     parser.add_argument('--confint', '-c', action='store', dest='confint',
                         default='95',
                         help='Confidence interval for summary plot; default is 95. If 0, no confidence interval shows.')
@@ -53,10 +58,10 @@ if __name__ == '__main__':
 
     # Specify output
     if args.html_file is not None:
-        bokeh.io.output_file(args.html_file, title='fish sleep explorer')
+        outfile = args.html_file
     else:
         outfile = args.activity_fname[:args.activity_fname.rfind('.')] + '.html'
-        bokeh.io.output_file(outfile, title='fish sleep explorer')
+    bokeh.io.output_file(outfile, title='fish sleep explorer')
 
     # Set the confidence interval
     ptiles = (2.5, 97.5)
@@ -107,6 +112,30 @@ if __name__ == '__main__':
                     df, signal=signal, summary_trace=args.summary_trace,
                     time_shift=args.time_shift)
 
+    if args.svg:
+        if bokeh.__version__ < '0.12.6':
+            print('\n')
+            print('Must have Bokeh version 0.12.6 or greater to output SVG.')
+            print('Not exporting SVG.\n')
+        else:
+            # Get filename for SVGs
+            if outfile[-5:] == '.html':
+                fname = outfile[:-5] + '.svg'
+            else:
+                fname = outfile + '.svg'
+
+            # Export them
+            try:
+                # Set SVG as backend
+                p.output_backend = 'svg'
+
+                print(bokeh.io.export_svgs(p, filename=fname))
+
+                # Set backend back to canvas
+                p.output_backend = 'canvas'
+            except:
+                print('\nUnable to export SVG.\n')
+
     # Save and show HTML file
     bokeh.io.save(p)
-    bokeh.io.show(p)
+    bokeh.io.show(p, browser=args.browser)
