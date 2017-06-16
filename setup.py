@@ -5,10 +5,10 @@
 
 from setuptools import setup, find_packages
 
-with open('README.rst') as readme_file:
+with open('README.md') as readme_file:
     readme = readme_file.read()
 
-with open('HISTORY.rst') as history_file:
+with open('HISTORY.md') as history_file:
     history = history_file.read()
 
 requirements = [
@@ -33,8 +33,12 @@ setup(
     long_description=readme + '\n\n' + history,
     author="Justin Bois",
     author_email='bois@caltech.edu',
-    url='https://github.com/justinbois/fish_activity',
-    packages=find_packages(include=['fish_activity']),
+    url='https://github.com/justinbois/fish-activity',
+    packages=find_packages(include=['fishact',
+                                    'fishact.parse',
+                                    'fishact.summarize',
+                                    'fishact.validate',
+                                    'fishact.visualize']),
     entry_points={
         'console_scripts': [
             'fish_activity=fish_activity.cli:main'
@@ -57,6 +61,7 @@ setup(
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
     ],
     test_suite='tests',
     tests_require=test_requirements,
