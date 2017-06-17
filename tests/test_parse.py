@@ -6,6 +6,20 @@ from pandas.util.testing import assert_frame_equal
 
 import fishact
 
+def test_sniffer():
+    n_header, delimiter, line = fishact.parse._sniff_file_info(
+                                                'tests/single_gtype.txt')
+    assert n_header == 2
+    assert delimiter == None
+    assert line == '1\n'
+
+    n_header, delimiter, line = fishact.parse._sniff_file_info(
+                                                'tests/multiple_gtype.txt')
+    assert n_header == 2
+    assert delimiter == '\t'
+    assert line == '1\t5\t2\n'
+    
+
 def test_resample_array():
     x  = np.arange(10, dtype=float)
     assert np.isclose(fishact.parse._resample_array(x, 10),

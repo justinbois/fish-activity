@@ -37,7 +37,14 @@ def _sniff_file_info(fname, comment='#', check_header=True, quiet=False):
         Inferred delimiter
     line : str
         The first line of data in the file.
+
+    Notes
+    -----
+    .. Valid delimiters are: ['\t', ',', ';', '|', ' ']
     """
+
+    valid_delimiters = ['\t', ',', ';', '|', ' ']
+
     with open(fname, 'r') as f:
         # Read through comments
         line = f.readline()
@@ -58,9 +65,13 @@ def _sniff_file_info(fname, comment='#', check_header=True, quiet=False):
             if not quiet:
                 print('Unable to determine delimiter, returning None')
         else:
-            delimiter = csv.Sniffer().sniff(line).delimiter
-            # Get first line of data
-            line = f.readline()
+            # If no tab, comma, ;, |, or space, assume single entry per column
+            if not any(d in line for d in valid_delimiters):
+                if not quiet:
+                    print('Unable to determine delimiter, returning None')
+                    delimiter = None
+            else:
+                delimiter = csv.Sniffer().sniff(line).delimiter
 
     # Return number of header rows and delimiter
     return n_header, delimiter, line
