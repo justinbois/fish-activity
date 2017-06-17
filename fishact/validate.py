@@ -238,7 +238,7 @@ def test_activity_file(fname, genotype_fname, quiet=False):
     # Check that start and stop times of intervals are kosher
     time_int = (df['end'] - df['start']).median()
     good_int = np.isclose(df['end'] - df['start'], time_int)
-    if np.sum(good_int) > 0:
+    if not np.all(good_int):
         if not quiet:
             df_bad = df.loc[~good_int, ['start', 'end']]
             max_bad = (df_bad['end'] - df_bad['start']).max()
@@ -273,9 +273,14 @@ def test_activity_file(fname, genotype_fname, quiet=False):
     # Count how many unique fish there are
     n_fish = len(df['location'].unique())
 
-    # Convert location to well number (just drop 'c' in front)
+    # Convert location to fish
     df = df.rename(columns={'location': 'fish'})
-    df['fish'] = df['fish'].str.extract('(\d+)', expand=False).astype(int)
+
+    # Detect if it's the new file format, and the convert fish to integer
+    if '-' in df['fish'].iloc[0]:
+        df['fish'] = df['fish'].apply(lambda x: x[x.rfind('-')+1:]).astype(int)
+    else:
+        df['fish'] = df['fish'].str.extract('(\d+)', expand=False).astype(int)
 
     # Make sure all fish are accounted for in genotype file
     try:
