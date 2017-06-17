@@ -345,9 +345,14 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
     df = pd.read_csv(fname, usecols=usecols, comment=comment,
                      delimiter=delimiter)
 
-    # Convert location to well number (just drop 'c' in front)
+    # Convert location to fish
     df = df.rename(columns={'location': 'fish'})
-    df['fish'] = df['fish'].str.extract('(\d+)', expand=False).astype(int)
+
+    # Detect if it's the new file format, and the convert fish to integer
+    if '-' in df['fish'].iloc[0]:
+        df['fish'] = df['fish'].apply(lambda x: x[x.rfind('-')+1:]).astype(int)
+    else:
+        df['fish'] = df['fish'].str.extract('(\d+)', expand=False).astype(int)
 
     # Only keep fish that we have genotypes for
     df = df.loc[df['fish'].isin(df_gt['fish']), :]
