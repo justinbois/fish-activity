@@ -67,9 +67,9 @@ def _sniff_file_info(fname, comment='#', check_header=True, quiet=False):
         else:
             # If no tab, comma, ;, |, or space, assume single entry per column
             if not any(d in line for d in valid_delimiters):
+                delimiter = None
                 if not quiet:
                     print('Unable to determine delimiter, returning None')
-                    delimiter = None
             else:
                 delimiter = csv.Sniffer().sniff(line).delimiter
 
