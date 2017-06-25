@@ -14,7 +14,7 @@ before_install:
       conda create -q -n testenv python=$TRAVIS_PYTHON_VERSION pytest;
       source activate testenv;
       conda install --file requirements.txt;
-      git clone https://github.com/justinbois/tsplot.git
+      git clone https://github.com/justinbois/tsplot.git $HOME/tsplot;
       export PYTHONPATH="$PYTHONPATH:$HOME/tsplot"
 
 install:
