@@ -137,3 +137,21 @@ def test_resample():
          'exp_time': np.array([0., 3., 5., 8., 0., 3., 5., 8.]),
          'exp_ind': np.array([0, 3, 5, 8, 0, 3, 5, 8], dtype=int)})
     assert_frame_equal(re_df, correct_df)
+
+
+def test_tidy_data():
+    # Test that it will not overwrite existing file
+    with pytest.raises(RuntimeError) as excinfo:
+        fishact.parse.tidy_data('test.csv', 'test_geno.txt', 'test.csv')
+    excinfo.match("Cannot overwrite input file.")
+
+    with pytest.raises(RuntimeError) as excinfo:
+        fishact.parse.tidy_data('test.csv', 'test_geno.txt', 'test_geno.txt')
+    excinfo.match("Cannot overwrite input file.")
+
+    with pytest.raises(RuntimeError) as excinfo:
+        fishact.parse.tidy_data('test.csv', 'test_geno.txt',
+                                'tests/empty_file_for_tests.csv')
+    excinfo.match("empty_file_for_tests.csv already exists, not overwriting.")
+
+    ## TO DO: integration test: make sure output CSV is as expected.

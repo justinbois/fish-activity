@@ -1,5 +1,6 @@
 import csv
 import datetime
+import os
 import warnings
 
 try:
@@ -77,16 +78,17 @@ def _sniff_file_info(fname, comment='#', check_header=True, quiet=False):
     return n_header, delimiter, line
 
 
-def tidy_data(activity_name, genotype_name, out_name, lights_on='9:00:00',
-              lights_off='23:00:00', day_in_the_life=4, resample_win=1,
-              extra_cols=[], wake_threshold=1e-5, rename={'middur': 'activity'},
-              gtype_double_header=None, gtype_rstrip=False):
+def tidy_data(activity_fname, genotype_fname, out_fname, lights_on='9:00:00',
+              lights_off='23:00:00', day_in_the_life=4,
+              wake_threshold=1e-5, extra_cols=[],
+              rename={'middur': 'activity'}, comment='#',
+              gtype_double_header=None, gtype_rstrip=False, resample_win=1):
     """
     Load in activity data and write tidy data file.
 
     Parameters
     ----------
-    fname : string
+    activity_fname : string
         CSV file containing the activity data. This is a conversion
         to CSV of the Excel file that comes off the instrument.
     genotype_fname : string
@@ -98,7 +100,7 @@ def tidy_data(activity_name, genotype_name, out_name, lights_on='9:00:00',
           'tph2-/- (n=20)', and we do not need the ' (n=20)'.
         - Subsequent rows containg wells in the 96 well plate
           corresponding to each genotype.
-    out_name : string
+    out_fname : string
         Name of file to write tidy DataFrame to.
     lights_on : string or datetime.time instance, default '9:00:00'
         The time where lights come on each day, e.g., '9:00:00'.
@@ -109,15 +111,13 @@ def tidy_data(activity_name, genotype_name, out_name, lights_on='9:00:00',
     day_in_the_life : int, default 4
         The day in the life of the embryos when data acquisition
         started.
-    resample_win : int, default 1
-        Size of resampling window.
+    wake_threshold : float, default 1e-5
+        Threshold number of seconds per minute that the fish moved
+        to be considered awake.
     extra_cols : list, default []
         List of extra columns to keep from the input file, e.g.,
         ['frect', 'fredur']. By default, only time, fish ID, and
         activity as measured by 'middur' is kept.
-    wake_threshold : float, default 1e-5
-        Threshold number of seconds per minute that the fish moved
-        to be considered awake.
     rename : dict, default {'middur': 'activity'}
         Dictionary for renaming column headings.
     comment : string, default '#'
@@ -132,31 +132,46 @@ def tidy_data(activity_name, genotype_name, out_name, lights_on='9:00:00',
         If True, strip out all text in genotype name to the right of
         the last space. This is because the genotype files typically
         have headers like 'wt (n=22)', and the '(n=22)' is useless.
-
+    resample_win : int, default 1
+        Size of resampling window.
 
     Notes
     -----
     .. Writes a tidy data set with columns:
-        - activity: The activity over the time interval
-        - time: time in proper datetime format
+        - activity: The activity as given by the instrument, based
+          on the `middur` columns of the inputted data set. This
+          column may be called 'middur' dependinfg on the `rename`
+          kwarg.
+        - time: time in proper datetime format, based on the `sttime`
+          column of the inputted data file
+        - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
+          This is convenient for computing sleep when resampling.
         - fish: ID of the fish
         - genotype: genotype of the fish
-        - expt_time: Experimental time
+        - exp_time: Experimental time, based on the `start` column of
+            the inputted data file
         - exp_ind: an index for the experimental time. Because of some
           errors in the acquisition, sometimes the times do not
           perfectly line up. exp_ind is just the index of the
           measurement. This is needed for computing averages over
           fish at each time point.
         - light: True if the light is on.
-        - day: The day in the life of the fish
+        - day: The day in the life of the fish. The day begins with
+          `lights_on`.
     """
-    df = load_data(activity_name, genotype_name, lights_on, lights_off,
-                   day_in_the_life, extra_cols=extra_cols, rename=rename,
-                   wake_threshold=wake_threshold, comment=comment,
-                   gtype_double_header=gtype_double_header,
-                   gtype_rstrip=gtype_rstrip)
+    if out_fname in [activity_fname, genotype_fname]:
+        raise RuntimeError('Cannot overwrite input file.')
+
+    if os.path.isfile(out_fname):
+        raise RuntimeError(out_fname + ' already exists, not overwriting.')
+
+    df = load_activity(activity_fname, genotype_fname, lights_on='9:00:00',
+                       lights_off='23:00:00', day_in_the_life=4,
+                       wake_threshold=1e-5, extra_cols=[],
+                       rename={'middur': 'activity'}, comment='#',
+                       gtype_double_header=None, gtype_rstrip=False)
     df = resample(df, resample_win)
-    df.to_csv(out_name, index=False)
+    df.to_csv(out_fname, index=False)
     return None
 
 
