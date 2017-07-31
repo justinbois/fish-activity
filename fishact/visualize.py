@@ -220,6 +220,10 @@ def grid(df, signal='activity', summary_trace='mean', time_shift='center',
         string, can one of 'mean', 'median', 'max', or 'min'. If
         None, no summary trace is generated. If a float between
         0 and 1, denotes which quantile to show.
+    gtype_order : list or tuple, default None
+        A list of the order of the genotypes to use in the plots. Each
+        entry must be in df['genotype']. If None,
+        df['genotype'].unique() is used.
     time_shift : string, default 'left'
         One of {'left', 'right', 'center', 'interval'}
         left: do not perform a time shift
@@ -253,7 +257,7 @@ def grid(df, signal='activity', summary_trace='mean', time_shift='center',
 
     # Make plots
     p = tsplot.grid(
-            df, 'exp_time', signal, 'genotype', 'fish',
+            df, 'exp_time', signal, 'genotype', 'fish', cats=gtype_order,
             time_ind='exp_ind', light='light', summary_trace=summary_trace,
             time_shift=time_shift, height=height, width=width,
             x_axis_label='time (hr)', y_axis_label=y_axis_label, colors=colors)
@@ -279,6 +283,10 @@ def summary(df, signal='activity', summary_trace='mean', time_shift='center',
         string, can one of 'mean', 'median', 'max', or 'min'. If
         None, no summary trace is generated. If a float between
         0 and 1, denotes which quantile to show.
+    gtype_order : list or tuple, default None
+        A list of the order of the genotypes to use in the plots. Each
+        entry must be in df['genotype']. If None,
+        df['genotype'].unique() is used.
     time_shift : string, default 'left'
         One of {'left', 'right', 'center', 'interval'}
         left: do not perform a time shift
@@ -321,7 +329,7 @@ def summary(df, signal='activity', summary_trace='mean', time_shift='center',
     y_axis_label = get_y_axis_label(df, signal)
 
     p = tsplot.summary(
-            df, 'exp_time', signal, 'genotype', 'fish',
+            df, 'exp_time', signal, 'genotype', 'fish', cats=gtype_order,
             time_ind='exp_ind', light='light', summary_trace=summary_trace,
             time_shift=time_shift, confint=confint, ptiles=ptiles,
             n_bs_reps=n_bs_reps, alpha=0.25, height=height, width=width,
