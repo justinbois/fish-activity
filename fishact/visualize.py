@@ -203,8 +203,9 @@ def all_traces(df, signal='activity', summary_trace='mean', time_shift='center',
     return p
 
 
-def grid(df, signal='activity', summary_trace='mean', time_shift='center',
-         alpha=0.75, hover_color='#535353', height=200, width=650, colors=None):
+def grid(df, signal='activity', summary_trace='mean',  gtype_order=None,
+         time_shift='center', alpha=0.75, hover_color='#535353', height=200,
+         width=650, colors=None):
     """
     Generate a set of plots for each genotype.
 
@@ -265,9 +266,10 @@ def grid(df, signal='activity', summary_trace='mean', time_shift='center',
     return p
 
 
-def summary(df, signal='activity', summary_trace='mean', time_shift='center',
-            confint=True, ptiles=(2.5, 97.5), n_bs_reps=1000, alpha=0.35,
-            height=350, width=650, colors=None, legend=True):
+def summary(df, signal='activity', summary_trace='mean', gtype_order=None,
+            time_shift='center', confint=True, ptiles=(2.5, 97.5),
+            n_bs_reps=1000, alpha=0.35, height=350, width=650, colors=None,
+            legend=True):
     """
     Generate a summary plot of the time courses.
 
