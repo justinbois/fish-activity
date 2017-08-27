@@ -335,7 +335,7 @@ def summary(df, signal='activity', summary_trace='mean', gtype_order=None,
             time_ind='exp_ind', light='light', summary_trace=summary_trace,
             time_shift=time_shift, confint=confint, ptiles=ptiles,
             n_bs_reps=n_bs_reps, alpha=0.25, height=height, width=width,
-            x_axis_label='time', y_axis_label=y_axis_label, colors=colors,
+            x_axis_label='time (hr)', y_axis_label=y_axis_label, colors=colors,
             legend=legend)
 
     return p

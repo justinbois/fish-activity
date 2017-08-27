@@ -80,7 +80,7 @@ def _sniff_file_info(fname, comment='#', check_header=True, quiet=False):
 
 def tidy_data(activity_fname, genotype_fname, out_fname, lights_on='9:00:00',
               lights_off='23:00:00', day_in_the_life=4,
-              wake_threshold=1e-5, extra_cols=[],
+              wake_threshold=0.1, extra_cols=[],
               rename={'middur': 'activity'}, comment='#',
               gtype_double_header=None, gtype_rstrip=False, resample_win=1):
     """
@@ -111,7 +111,7 @@ def tidy_data(activity_fname, genotype_fname, out_fname, lights_on='9:00:00',
     day_in_the_life : int, default 4
         The day in the life of the embryos when data acquisition
         started.
-    wake_threshold : float, default 1e-5
+    wake_threshold : float, default 0.1
         Threshold number of seconds per minute that the fish moved
         to be considered awake.
     extra_cols : list, default []
@@ -165,11 +165,12 @@ def tidy_data(activity_fname, genotype_fname, out_fname, lights_on='9:00:00',
     if os.path.isfile(out_fname):
         raise RuntimeError(out_fname + ' already exists, not overwriting.')
 
-    df = load_activity(activity_fname, genotype_fname, lights_on='9:00:00',
-                       lights_off='23:00:00', day_in_the_life=4,
-                       wake_threshold=1e-5, extra_cols=[],
-                       rename={'middur': 'activity'}, comment='#',
-                       gtype_double_header=None, gtype_rstrip=False)
+    df = load_activity(
+        activity_fname, genotype_fname, lights_on=lights_on,
+        lights_off=lights_off, day_in_the_life=day_in_the_life,
+        wake_threshold=wake_threshold, extra_cols=extra_cols,
+        rename=rename, comment=comment, 
+        gtype_double_header=gtype_double_header, gtype_rstrip=gtype_rstrip)
     df = resample(df, resample_win)
     df.to_csv(out_fname, index=False)
     return None
@@ -251,7 +252,7 @@ def load_gtype(fname, comment='#', double_header=None, rstrip=False,
 
 def load_activity(fname, genotype_fname, lights_on='9:00:00',
                   lights_off='23:00:00', day_in_the_life=4,
-                  wake_threshold=1e-5, extra_cols=[],
+                  wake_threshold=0.1, extra_cols=[],
                   rename={'middur': 'activity'}, comment='#',
                   gtype_double_header=None, gtype_rstrip=False):
     """
@@ -280,7 +281,7 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
     day_in_the_life : int, default 4
         The day in the life of the embryos when data acquisition
         started.
-    wake_threshold : float, default 1e-5
+    wake_threshold : float, default 0.1
         Threshold number of seconds per minute that the fish moved
         to be considered awake.
     extra_cols : list, default []
@@ -432,7 +433,7 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
 
 
 def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
-                                 wake_threshold=1e-5, day_in_the_life=4):
+                                 wake_threshold=0.1, day_in_the_life=4):
     """
     Load activity data into tidy DataFrame from Prober lab Perl script.
 
@@ -453,7 +454,7 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
     lights_off : float, default 14.0
         The time where lights come on each day according to the
         Zeitgeber time, in units of hours.
-    wake_threshold : float, default 1e-5
+    wake_threshold : float, default 0.1
         Threshold number of seconds per minute that the fish moved
         to be considered awake.
     day_in_the_life : int

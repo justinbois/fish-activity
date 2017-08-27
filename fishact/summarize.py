@@ -271,8 +271,8 @@ def bouts(df, rest=True, quiet=False):
         df_out = df_out.append(df_bout, ignore_index=True)
 
     # Ensure data types
-    for col, dtype in cols.items():
-        df_out[col] = df_out[col].astype(dtype)
+    # for col, dtype in cols.items():
+    #     df_out[col] = df_out[col].astype(dtype)
 
     return df_out
 
