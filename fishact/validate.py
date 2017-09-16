@@ -237,7 +237,8 @@ def test_activity_file(fname, genotype_fname, quiet=False):
 
     # Check that start and stop times of intervals are kosher
     time_int = (df['end'] - df['start']).median()
-    good_int = np.isclose(df['end'] - df['start'], time_int)
+    good_int = np.logical_or(np.isclose(df['end'] - df['start'], time_int), 
+                             df['endreason'] == 'End of session')
     if not np.all(good_int):
         if not quiet:
             df_bad = df.loc[~good_int, ['start', 'end']]
@@ -273,14 +274,11 @@ def test_activity_file(fname, genotype_fname, quiet=False):
     # Count how many unique fish there are
     n_fish = len(df['location'].unique())
 
-    # Convert location to fish
-    df = df.rename(columns={'location': 'fish'})
-
     # Detect if it's the new file format, and the convert fish to integer
-    if '-' in df['fish'].iloc[0]:
-        df['fish'] = df['fish'].apply(lambda x: x[x.rfind('-')+1:]).astype(int)
+    if '-' in df['location'].iloc[0]:
+        df['location'] = df['location'].apply(lambda x: x[x.rfind('-')+1:]).astype(int)
     else:
-        df['fish'] = df['fish'].str.extract('(\d+)', expand=False).astype(int)
+        df['location'] = df['location'].str.extract('(\d+)', expand=False).astype(int)
 
     # Make sure all fish are accounted for in genotype file
     try:
@@ -292,13 +290,13 @@ def test_activity_file(fname, genotype_fname, quiet=False):
         test_gtypes = False
 
     if test_gtypes:
-        g_set = set(df_g['fish'].unique())
-        a_set = set(df['fish'].unique())
+        g_set = set(df_g['location'].unique())
+        a_set = set(df['location'].unique())
 
         set_diff = a_set - g_set
         if set_diff != set():
             n_fail += 1
-            print('ERROR: Fish [ ', end='')
+            print('ERROR: location [ ', end='')
             for x in sorted(list(set_diff)):
                 print(x, end=' ')
             print('] in activity file but not in genotype file.')
@@ -310,7 +308,7 @@ def test_activity_file(fname, genotype_fname, quiet=False):
         set_diff = g_set - a_set
         if set_diff != set():
             n_fail += 1
-            print('ERROR: Fish [ ', end='')
+            print('ERROR: location [ ', end='')
             for x in sorted(list(set_diff)):
                 print(x, end=' ')
             print('] in genotype file but not in activity file.\n')
