@@ -21,7 +21,7 @@ def _compute_bouts(df, rest=True):
         containing the following columns:
         - activity: The activity as given by the instrument, based
           on the `middur` columns of the inputted data set. This
-          column may be called 'middur' dependinfg on the `rename`
+          column may be called 'middur' depending on the `rename`
           kwarg.
         - time: time in proper datetime format, based on the `sttime`
           column of the inputted data file
@@ -75,8 +75,8 @@ def _compute_bouts(df, rest=True):
             'day_end': int,
             'light_start': bool,
             'light_end': bool,
-            'bout_start_exp': float,
-            'bout_end_exp': float,
+            'bout_start_zeit': float,
+            'bout_end_zeit': float,
             'bout_start_clock': '<M8[ns]',
             'bout_end_clock': '<M8[ns]',
             'bout_length': float})
@@ -109,7 +109,7 @@ def _compute_bouts(df, rest=True):
             i = np.arange(1, len(switches)-1, 2, dtype=int)
 
     # Pull out indices of switches
-    c = ['day', 'light', 'time', 'exp_time']
+    c = ['day', 'light', 'time', 'zeit']
     df_switch = df.loc[df.index[switches], c].copy().reset_index(drop=True)
 
     # Build output array
@@ -118,12 +118,12 @@ def _compute_bouts(df, rest=True):
     df_out['day_end'] = df_switch.loc[i+1, 'day'].values
     df_out['light_start'] = df_switch.loc[i, 'light'].values
     df_out['light_end'] = df_switch.loc[i+1, 'light'].values
-    df_out['bout_start_exp'] = df_switch.loc[i, 'exp_time'].values
-    df_out['bout_end_exp'] = df_switch.loc[i+1, 'exp_time'].values
+    df_out['bout_start_zeit'] = df_switch.loc[i, 'zeit'].values
+    df_out['bout_end_zeit'] = df_switch.loc[i+1, 'zeit'].values
     df_out['bout_start_clock'] = df_switch.loc[i, 'time'].values
     df_out['bout_end_clock'] = df_switch.loc[i+1, 'time'].values
-    df_out['bout_length'] = df_switch.loc[i+1, 'exp_time'].values - \
-                df_switch.loc[i, 'exp_time'].values
+    df_out['bout_length'] = df_switch.loc[i+1, 'zeit'].values - \
+                df_switch.loc[i, 'zeit'].values
 
     # Ensure data types
     for col, dtype in cols.items():
@@ -139,7 +139,7 @@ def _sleep_latency(df):
     Parameters
     ----------
     df : pandas DataFrame
-        Minimally with columns 'sleep' and 'exp_time'. Finds the first
+        Minimally with columns 'sleep' and 'zeit'. Finds the first
         minute of sleep.
 
     Returns
@@ -166,19 +166,19 @@ def _sleep_latency(df):
         return np.nan
 
     # First awake minute
-    first_awake_min = awake_mins['exp_time'].min()
+    first_awake_min = awake_mins['zeit'].min()
 
     # Relevant sleep minutes
-    sleep_mins = df.loc[(df['sleep']==1) & (df['exp_time'] > first_awake_min)]
+    sleep_mins = df.loc[(df['sleep']==1) & (df['zeit'] > first_awake_min)]
 
     # If never asleep after first awake minute, return NaN
     if len(sleep_mins) == 0:
         return np.nan
 
-    return sleep_mins['exp_time'].min() - first_awake_min
+    return sleep_mins['zeit'].min() - first_awake_min
 
 
-def bouts(df, rest=True, quiet=False):
+def bouts(df, rest=True, loc_name='location', quiet=False):
     """
     Compute bouts for rest of activity.
 
@@ -195,21 +195,36 @@ def bouts(df, rest=True, quiet=False):
           column of the inputted data file
         - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
           This is convenient for computing sleep when resampling.
-        - fish: ID of the fish
+        - location: ID of the location of the animal. This is often
+          renamted to `fish`, but not by default.
         - genotype: genotype of the fish
+        - zeit: The Zeitgeber time, based off of the clock time, not
+          the experimental time. Zeitgeber time zero is specified with 
+          the `zeitgeber_0` kwarg, or alternatively with the 
+          `zeitgeber_0_day` and `zeitgeber_0_time` kwargs.
+        - zeit_ind: Index of the measured Zeitgeber time. Because of 
+          some errors in the acquisition, sometimes the times do not
+          perfectly line up. This is needed for computing averages over
+          locations at each time point.
         - exp_time: Experimental time, based on the `start` column of
-            the inputted data file
+          the inputted data file
         - exp_ind: an index for the experimental time. Because of some
           errors in the acquisition, sometimes the times do not
           perfectly line up. exp_ind is just the index of the
           measurement. This is needed for computing averages over
           fish at each time point.
+        - acquisition: Number associated with which acquisition the data
+          are coming from. If the experimenter restarts acquisition,
+          this number would change.
         - light: True if the light is on.
         - day: The day in the life of the fish. The day begins with
           `lights_on`.
     rest : bool, default True
         True if rest bouts are being computed. False if active
         bouts are being computed.
+    loc_name : str
+        Name of column containing the "location," i.e., animal location.
+        'fish' is a common entry.
     quiet : bool, default False
         If True, do not show progress bar.
 
@@ -235,18 +250,19 @@ def bouts(df, rest=True, quiet=False):
     Notes
     -----
     .. We do not consider bouts at the beginning or end of an
-       experiment.
+       acquisition because we do not know when the bout started or
+       ended, respectively.
     """
     # Output DataFrame
     cols = collections.OrderedDict(
-           {'fish': int,
+           {loc_name: int,
             'genotype': str,
             'day_start': int,
             'day_end': int,
             'light_start': bool,
             'light_end': bool,
-            'bout_start_exp': float,
-            'bout_end_exp': float,
+            'bout_start_zeit': float,
+            'bout_end_zeit': float,
             'bout_start_clock': '<M8[ns]',
             'bout_end_clock': '<M8[ns]',
             'bout_length': float})
@@ -256,19 +272,20 @@ def bouts(df, rest=True, quiet=False):
     if not quiet:
         print('Performing bout calculation....')
         try:
-            iterator = tqdm.tqdm(df['fish'].unique())
+            iterator = tqdm.tqdm(df[loc_name].unique())
         except:
-            iterator = df['fish'].unique()
+            iterator = df[loc_name].unique()
     else:
-        iterator = df['fish'].unique()
+        iterator = df[loc_name].unique()
 
-    # Loop through fish and populate output DataFrame
-    for fish in iterator:
-        df_fish = df.loc[df['fish']==fish, :]
-        df_bout = _compute_bouts(df_fish, rest=rest)
-        df_bout['fish'] = fish
-        df_bout['genotype'] = df_fish['genotype'].iloc[0]
-        df_out = df_out.append(df_bout, ignore_index=True)
+    # Loop through locations and populate output DataFrame
+    for loc in iterator:
+        for ac in df['acquisition'].unique():
+            df_loc = df.loc[(df[loc_name]==loc) & (df['acquisition']==ac), :]
+            df_bout = _compute_bouts(df_loc, rest=rest)
+            df_bout[loc_name] = loc
+            df_bout['genotype'] = df_loc['genotype'].iloc[0]
+            df_out = df_out.append(df_bout, ignore_index=True)
 
     # Ensure data types
     # for col, dtype in cols.items():
@@ -277,9 +294,9 @@ def bouts(df, rest=True, quiet=False):
     return df_out
 
 
-def daily_summary(df):
+def daily_summary(df, loc_name='location'):
     """
-    Make a summary DataFrame of fish activity and sleep
+    Make a summary DataFrame of activity and sleep
 
     Parameters
     ----------
@@ -294,18 +311,33 @@ def daily_summary(df):
           column of the inputted data file
         - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
           This is convenient for computing sleep when resampling.
-        - fish: ID of the fish
+        - location: ID of the location of the animal. This is often
+          renamted to `fish`, but not by default.
         - genotype: genotype of the fish
+        - zeit: The Zeitgeber time, based off of the clock time, not
+          the experimental time. Zeitgeber time zero is specified with 
+          the `zeitgeber_0` kwarg, or alternatively with the 
+          `zeitgeber_0_day` and `zeitgeber_0_time` kwargs.
+        - zeit_ind: Index of the measured Zeitgeber time. Because of 
+          some errors in the acquisition, sometimes the times do not
+          perfectly line up. This is needed for computing averages over
+          locations at each time point.
         - exp_time: Experimental time, based on the `start` column of
-            the inputted data file
+          the inputted data file
         - exp_ind: an index for the experimental time. Because of some
           errors in the acquisition, sometimes the times do not
           perfectly line up. exp_ind is just the index of the
           measurement. This is needed for computing averages over
           fish at each time point.
+        - acquisition: Number associated with which acquisition the data
+          are coming from. If the experimenter restarts acquisition,
+          this number would change.
         - light: True if the light is on.
         - day: The day in the life of the fish. The day begins with
           `lights_on`.
+    loc_name : str
+        Name of column containing the "location," i.e., animal location.
+        'fish' is a common entry.
 
     Returns
     -------
@@ -319,9 +351,9 @@ def daily_summary(df):
         - activity: Total seconds of activity in time period
         - sleep: Total minues of sleep in time period
     """
-    gb = df.groupby(['fish', 'genotype', 'day', 'light'])
+    gb = df.groupby([loc_name, 'genotype', 'day', 'light'])
     df_sum = gb['activity', 'sleep'].sum()
-    df_sum['latency'] = gb['sleep', 'exp_time'].apply(_sleep_latency)
+    df_sum['latency'] = gb['sleep', 'zeit'].apply(_sleep_latency)
     return df_sum.reset_index()
 
 
@@ -358,12 +390,12 @@ def _column_tup_to_str(ind):
         return string + 'night ' + str(ind[1])
 
 
-def write_daily_summary(df, outfile):
+def write_daily_summary(df, outfile, loc_name='location'):
     """
     Write a CSV file with summary of daily statistics.
     """
     # Make sure all columns are there
-    for col in ['activity', 'sleep', 'fish', 'genotype', 'light', 'day']:
+    for col in ['activity', 'sleep', loc_name, 'genotype', 'light', 'day']:
         if col not in df.columns:
             raise RuntimeError('%s missing from input DataFrame' % col)
 
@@ -372,7 +404,7 @@ def write_daily_summary(df, outfile):
     df_sum['latency'] *= 60
 
     # Pivot
-    df_sum = pd.pivot_table(df_sum, index=['fish', 'genotype'],
+    df_sum = pd.pivot_table(df_sum, index=[loc_name, 'genotype'],
                             values=['activity', 'sleep', 'latency'],
                             columns=['day', 'light'])
 
@@ -382,7 +414,7 @@ def write_daily_summary(df, outfile):
                       ascending=[True, True, False], inplace=True)
 
     # Sort by genotype and then fish ID
-    df_sum.sort_index(axis=0, level=['genotype', 'fish'], inplace=True)
+    df_sum.sort_index(axis=0, level=['genotype', loc_name], inplace=True)
 
     # Rename the column headings from the MultiIndex
     df_sum.columns = [_column_tup_to_str(ind) for ind in df_sum.columns]

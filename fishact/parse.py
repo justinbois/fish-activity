@@ -78,17 +78,19 @@ def _sniff_file_info(fname, comment='#', check_header=True, quiet=False):
     return n_header, delimiter, line
 
 
-def tidy_data(activity_fname, genotype_fname, out_fname, lights_on='9:00:00',
+def tidy_data(fname, genotype_fname, out_fname, lights_on='9:00:00',
               lights_off='23:00:00', day_in_the_life=4,
               wake_threshold=0.1, extra_cols=[],
               rename={'middur': 'activity'}, comment='#',
-              gtype_double_header=None, gtype_rstrip=False, resample_win=1):
+              gtype_double_header=None, gtype_rstrip=False, resample_win=1,
+              resample_signal=['activity', 'sleep']):
     """
-    Load in activity data and write tidy data file.
+    Load in activity data and write tidy data file with possibly 
+    resampled data.
 
     Parameters
     ----------
-    activity_fname : string
+    fname : string
         CSV file containing the activity data. This is a conversion
         to CSV of the Excel file that comes off the instrument.
     genotype_fname : string
@@ -133,7 +135,9 @@ def tidy_data(activity_fname, genotype_fname, out_fname, lights_on='9:00:00',
         the last space. This is because the genotype files typically
         have headers like 'wt (n=22)', and the '(n=22)' is useless.
     resample_win : int, default 1
-        Size of resampling window.
+        Size of resampling window in units of indices.
+    resample_signal : list, default ['activity', 'sleep']
+        Which signals to resample.
 
     Notes
     -----
@@ -146,32 +150,51 @@ def tidy_data(activity_fname, genotype_fname, out_fname, lights_on='9:00:00',
           column of the inputted data file
         - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
           This is convenient for computing sleep when resampling.
-        - fish: ID of the fish
+        - location: ID of the location of the animal. This is often
+          renamted to `fish`, but not by default.
         - genotype: genotype of the fish
+        - zeit: The Zeitgeber time, based off of the clock time, not
+          the experimental time. Zeitgeber time zero is specified with 
+          the `zeitgeber_0` kwarg, or alternatively with the 
+          `zeitgeber_0_day` and `zeitgeber_0_time` kwargs.
+        - zeit_ind: Index of the measured Zeitgeber time. Because of 
+          some errors in the acquisition, sometimes the times do not
+          perfectly line up. This is needed for computing averages over
+          locations at each time point.
         - exp_time: Experimental time, based on the `start` column of
-            the inputted data file
+          the inputted data file
         - exp_ind: an index for the experimental time. Because of some
           errors in the acquisition, sometimes the times do not
           perfectly line up. exp_ind is just the index of the
           measurement. This is needed for computing averages over
           fish at each time point.
+        - acquisition: Number associated with which acquisition the data
+          are coming from. If the experimenter restarts acquisition,
+          this number would change.
         - light: True if the light is on.
         - day: The day in the life of the fish. The day begins with
           `lights_on`.
     """
-    if out_fname in [activity_fname, genotype_fname]:
-        raise RuntimeError('Cannot overwrite input file.')
+    if out_fname in [fname, genotype_fname]:
+        raise RuntimeError('Cowardly refusing to overwrite input file.')
 
     if os.path.isfile(out_fname):
-        raise RuntimeError(out_fname + ' already exists, not overwriting.')
+        raise RuntimeError(out_fname 
+                + ' already exists, cowardly refusing to overwrite.')
 
     df = load_activity(
-        activity_fname, genotype_fname, lights_on=lights_on,
+        fname, genotype_fname, lights_on=lights_on,
         lights_off=lights_off, day_in_the_life=day_in_the_life,
         wake_threshold=wake_threshold, extra_cols=extra_cols,
         rename=rename, comment=comment, 
         gtype_double_header=gtype_double_header, gtype_rstrip=gtype_rstrip)
-    df = resample(df, resample_win)
+
+    if 'location' in rename:
+        loc_name = rename['location']
+    else:
+        loc_name = 'location'
+
+    df = resample(df, resample_win, signal=resample_signal, loc_name=loc_name)
     df.to_csv(out_fname, index=False)
     return None
 
@@ -329,15 +352,27 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
           column of the inputted data file
         - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
           This is convenient for computing sleep when resampling.
-        - fish: ID of the fish
+        - location: ID of the location of the animal. This is often
+          renamted to `fish`, but not by default.
         - genotype: genotype of the fish
+        - zeit: The Zeitgeber time, based off of the clock time, not
+          the experimental time. Zeitgeber time zero is specified with 
+          the `zeitgeber_0` kwarg, or alternatively with the 
+          `zeitgeber_0_day` and `zeitgeber_0_time` kwargs.
+        - zeit_ind: Index of the measured Zeitgeber time. Because of 
+          some errors in the acquisition, sometimes the times do not
+          perfectly line up. This is needed for computing averages over
+          locations at each time point.
         - exp_time: Experimental time, based on the `start` column of
-            the inputted data file
+          the inputted data file
         - exp_ind: an index for the experimental time. Because of some
           errors in the acquisition, sometimes the times do not
           perfectly line up. exp_ind is just the index of the
           measurement. This is needed for computing averages over
           fish at each time point.
+        - acquisition: Number associated with which acquisition the data
+          are coming from. If the experimenter restarts acquisition,
+          this number would change.
         - light: True if the light is on.
         - day: The day in the life of the fish. The day begins with
           `lights_on`.
@@ -488,6 +523,10 @@ def _load_single_activity_file(
         - time: time in proper datetime format, based on the `sttime`
           column of the inputted data file
         - location: ID of the organism
+        - acquisition: Number associated with which acquisition the data
+          are coming from. If the experimenter restarts acquisition,
+          this number would change.
+        - genotype: genotype of the animal in the location
 
     Notes
     -----
@@ -700,7 +739,7 @@ def _resample_array(x, ind_win):
     x : ndarray
         Array to resample with summing.
     ind_win : int
-        Width of window to de resampling.
+        Width of window to do resampling.
 
     Returns
     -------
@@ -758,7 +797,7 @@ def resample(df, ind_win, signal=['activity', 'sleep'], loc_name='location',
     ----------
     df : pandas DataFrame
         DataFrame with pertinent data. Must have columns 'time',
-        'fish', 'genotype', 'day', 'light', 'exp_time'.
+        'fish', 'genotype', 'day', 'light', 'zeit'.
     ind_win : int
         Window for resampling, in units of indices.
     signal : list, default ['activity', 'sleep']

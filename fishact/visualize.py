@@ -109,7 +109,7 @@ def _ecdf_formal(data, buff=0.1, min_x=None, max_x=None):
     return x_formal, y_formal
 
 
-def get_y_axis_label(df, signal, time_unit=None):
+def get_y_axis_label(df, signal, loc_name='location', time_unit=None):
     """
     Generate y-label for visualizations.
 
@@ -120,6 +120,13 @@ def get_y_axis_label(df, signal, time_unit=None):
         from parse.resample().
     signal : string
         String for what is on the y-axis
+    loc_name : str, default 'location'
+        Name of column containing the "location," i.e., animal location.
+        'fish' is a common entry.
+    time_unit : str, default None
+        Time unit for time axis label. By default, if `signal` is 
+        'sleep', `time_unit` is 'min.', and if signal is 'activity', 
+        `time_unit` is 'sec.'.
 
     Returns
     -------
@@ -134,9 +141,9 @@ def get_y_axis_label(df, signal, time_unit=None):
             time_unit = 'sec.'
 
     # Get approximate time interval of averages
-    inds = df['fish']==df['fish'].unique()[0]
-    exp_time = np.sort(df.loc[inds, 'exp_time'].values)
-    dt = np.median(np.diff(exp_time)) * 60
+    inds = df[loc_name]==df[loc_name].unique()[0]
+    zeit = np.sort(df.loc[inds, 'zeit'].values)
+    dt = np.median(np.diff(zeit)) * 60
 
     # Make y-axis label
     if 0.05 <= abs(dt - int(dt)) <= 0.95:
@@ -146,7 +153,8 @@ def get_y_axis_label(df, signal, time_unit=None):
                                                      int(np.round(dt)))
 
 
-def all_traces(df, signal='activity', summary_trace='mean', time_shift='center',
+def all_traces(df, signal='activity', summary_trace='mean', 
+               loc_name='location',time_shift='center',
                alpha=0.75, hover_color='#535353', height=350, width=650,
                colors=None):
     """
@@ -164,6 +172,9 @@ def all_traces(df, signal='activity', summary_trace='mean', time_shift='center',
         string, can one of 'mean', 'median', 'max', or 'min'. If
         None, no summary trace is generated. If a float between
         0 and 1, denotes which quantile to show.
+    loc_name : str, default 'location'
+        Name of column containing the "location," i.e., animal location.
+        'fish' is a common entry.
     time_shift : string, default 'left'
         One of {'left', 'right', 'center', 'interval'}
         left: do not perform a time shift
@@ -196,16 +207,16 @@ def all_traces(df, signal='activity', summary_trace='mean', time_shift='center',
 
     # Make plots
     p = tsplot.all_traces(
-            df, 'exp_time', signal, 'fish', time_ind='exp_ind',
+            df, 'zeit', signal, loc_name, time_ind='zeit_ind',
             light='light', summary_trace='mean', time_shift=time_shift,
             alpha=0.75, x_axis_label='time (hr)', y_axis_label=y_axis_label)
 
     return p
 
 
-def grid(df, signal='activity', summary_trace='mean',  gtype_order=None,
-         time_shift='center', alpha=0.75, hover_color='#535353', height=200,
-         width=650, colors=None):
+def grid(df, signal='activity', summary_trace='mean', loc_name='location', 
+         gtype_order=None, time_shift='center', alpha=0.75, 
+         hover_color='#535353', height=200, width=650, colors=None):
     """
     Generate a set of plots for each genotype.
 
@@ -221,6 +232,9 @@ def grid(df, signal='activity', summary_trace='mean',  gtype_order=None,
         string, can one of 'mean', 'median', 'max', or 'min'. If
         None, no summary trace is generated. If a float between
         0 and 1, denotes which quantile to show.
+    loc_name : str, default 'location'
+        Name of column containing the "location," i.e., animal location.
+        'fish' is a common entry.
     gtype_order : list or tuple, default None
         A list of the order of the genotypes to use in the plots. Each
         entry must be in df['genotype']. If None,
@@ -258,18 +272,18 @@ def grid(df, signal='activity', summary_trace='mean',  gtype_order=None,
 
     # Make plots
     p = tsplot.grid(
-            df, 'exp_time', signal, 'genotype', 'fish', cats=gtype_order,
-            time_ind='exp_ind', light='light', summary_trace=summary_trace,
+            df, 'zeit', signal, 'genotype', loc_name, cats=gtype_order,
+            time_ind='zeit_ind', light='light', summary_trace=summary_trace,
             time_shift=time_shift, height=height, width=width,
             x_axis_label='time (hr)', y_axis_label=y_axis_label, colors=colors)
 
     return p
 
 
-def summary(df, signal='activity', summary_trace='mean', gtype_order=None,
-            time_shift='center', confint=True, ptiles=(2.5, 97.5),
-            n_bs_reps=1000, alpha=0.35, height=350, width=650, colors=None,
-            legend=True):
+def summary(df, signal='activity', summary_trace='mean', loc_name='location',
+            gtype_order=None, time_shift='center', confint=True, 
+            ptiles=(2.5, 97.5), n_bs_reps=1000, alpha=0.35, height=350, 
+            width=650, colors=None, legend=True):
     """
     Generate a summary plot of the time courses.
 
@@ -285,6 +299,9 @@ def summary(df, signal='activity', summary_trace='mean', gtype_order=None,
         string, can one of 'mean', 'median', 'max', or 'min'. If
         None, no summary trace is generated. If a float between
         0 and 1, denotes which quantile to show.
+    loc_name : str, default 'location'
+        Name of column containing the "location," i.e., animal location.
+        'fish' is a common entry.
     gtype_order : list or tuple, default None
         A list of the order of the genotypes to use in the plots. Each
         entry must be in df['genotype']. If None,
@@ -331,8 +348,8 @@ def summary(df, signal='activity', summary_trace='mean', gtype_order=None,
     y_axis_label = get_y_axis_label(df, signal)
 
     p = tsplot.summary(
-            df, 'exp_time', signal, 'genotype', 'fish', cats=gtype_order,
-            time_ind='exp_ind', light='light', summary_trace=summary_trace,
+            df, 'zeit', signal, 'genotype', loc_name, cats=gtype_order,
+            time_ind='zeit_ind', light='light', summary_trace=summary_trace,
             time_shift=time_shift, confint=confint, ptiles=ptiles,
             n_bs_reps=n_bs_reps, alpha=0.25, height=height, width=width,
             x_axis_label='time (hr)', y_axis_label=y_axis_label, colors=colors,
