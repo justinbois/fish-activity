@@ -254,7 +254,7 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
                   lights_off='23:00:00', day_in_the_life=4,
                   zeitgeber_0=None, zeitgeber_0_day=5, zeitgeber_0_time=None,
                   wake_threshold=0.1, extra_cols=[],
-                  rename={'middur': 'activity', 'location': 'fish'}, 
+                  rename={'middur': 'activity'}, 
                   comment='#',
                   gtype_double_header=None, gtype_rstrip=False):
     """
@@ -364,8 +364,9 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
                         filename, 
                         df_gt,
                         extra_cols=extra_cols, 
-                        comment=comment)
-                    for filename in fname])
+                        comment=comment,
+                        acquisition=ac+1)
+                    for ac, filename in enumerate(fname)])
 
     # Columns to use
     usecols = list(df.columns)
@@ -419,6 +420,13 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
                                             np.sum(df['location']==loc))
     df['exp_ind'] = df['exp_ind'].astype(int)
 
+    # Infer time interval in units of hours (almost always 1/60)
+    dt = np.diff(df.loc[df['location'] == df['location'].unique()[0], 'time'])
+    dt = np.median(dt.astype(float) / 3600e9)
+
+    # Add zeit indices
+    df['zeit_ind'] = (np.round(df['zeit'] / dt)).astype(int)
+
     # Only use columns we want
     if 'sttime' not in extra_cols:
         usecols.remove('sttime')
@@ -427,7 +435,7 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
     if 'start' not in extra_cols:
         usecols.remove('start')
 
-    cols = usecols + ['zeit', 'exp_ind', 'light', 'day']
+    cols = usecols + ['zeit', 'zeit_ind', 'exp_ind', 'light', 'day']
     df = df[cols]
 
     # Compute sleep
@@ -443,13 +451,12 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
     return df
 
 
-
-
 def _load_single_activity_file(
         fname, 
         df_gt,
         extra_cols=[],
-        comment='#'):
+        comment='#',
+        acquisition=1):
     """
     Load in activity CSV file to tidy DateFrame
 
@@ -527,6 +534,9 @@ def _load_single_activity_file(
     # Convert date and time to a time stamp
     df['time'] = pd.to_datetime(df['stdate'] + df['sttime'],
                                 format='%d/%m/%Y%H:%M:%S')
+
+    # Add the acquisition number
+    df['acquisition'] = acquisition * np.ones(len(df), dtype=int)
 
     return df
 
@@ -739,7 +749,8 @@ def _resample_segment(df, ind_win, signal):
 
 
 
-def resample(df, ind_win, signal=['activity', 'sleep'], quiet=False):
+def resample(df, ind_win, signal=['activity', 'sleep'], loc_name='location',
+             quiet=False):
     """
     Resample the DataFrame.
 
@@ -750,9 +761,12 @@ def resample(df, ind_win, signal=['activity', 'sleep'], quiet=False):
         'fish', 'genotype', 'day', 'light', 'exp_time'.
     ind_win : int
         Window for resampling, in units of indices.
-    signal : list
+    signal : list, default ['activity', 'sleep']
         List of columns in the DataFrame to resample. These are
         the signals, e.g., ['activity', 'midct'], to resample.
+    loc_name : str
+        Name of column containing the "location," i.e., animal location.
+        'fish' is a common entry.
     quiet : bool, default False
         If True, status output to the screen is silenced.
 
@@ -764,7 +778,7 @@ def resample(df, ind_win, signal=['activity', 'sleep'], quiet=False):
     Notes
     -----
     .. Assumes that the signal is aligned with the
-       *left* of the time interval. I.e., if df['exp_time'] = [0, 1, 2],
+       *left* of the time interval. I.e., if df['zeit'] = [0, 1, 2],
        the values of df['activity'] are assumed to be aggregated over
        time intervals 0 to 1, 1 to 2, and 2 to 3. The same is true
        for the outputted resampled array.
@@ -772,8 +786,8 @@ def resample(df, ind_win, signal=['activity', 'sleep'], quiet=False):
     # Make a copy so as to leave original unperturbed
     df_in = df.copy()
 
-    # Sort the DataFrame by fish and then exp_time
-    df_in = df_in.sort_values(by=['fish', 'exp_time']).reset_index(drop=True)
+    # Sort the DataFrame by location and then zeit
+    df_in = df_in.sort_values(by=[loc_name, 'zeit']).reset_index(drop=True)
 
     # If no resampling is necessary
     if ind_win == 1:
@@ -785,29 +799,30 @@ def resample(df, ind_win, signal=['activity', 'sleep'], quiet=False):
     if not quiet:
         print('Performing resampling....')
         try:
-            iterator = tqdm.tqdm(df_in['fish'].unique())
+            iterator = tqdm.tqdm(df_in[loc_name].unique())
         except:
-            iterator = df_in['fish'].unique()
+            iterator = df_in[loc_name].unique()
     else:
-        iterator = df_in['fish'].unique()
+        iterator = df_in[loc_name].unique()
 
-    for fish in iterator:
-        # Slice out entry for fish
-        df_fish = df_in.loc[
-                    df_in['fish']==fish, :].copy().reset_index(drop=True)
+    for loc in iterator:
+        # Slice out entry for loc
+        df_loc = df_in.loc[
+                    df_in[loc_name]==loc, :].copy().reset_index(drop=True)
 
-        # Find indices where light switches
-        df_fish['switch'] = df_fish['light'].diff()
-        df_fish.loc[df_fish.index[0], 'switch'] = True
-        inds = df_fish.where(df_fish['switch']).dropna().index
+        # Find indices where light or acquisition switches
+        df_loc['switch'] = (  df_loc['light'].diff().astype(bool) 
+                            | df_loc['acquisition'].diff())
+        df_loc.loc[df_loc.index[0], 'switch'] = True
+        inds = df_loc.where(df_loc['switch']).dropna().index
 
         # Resample data for each segment
         for i, ind in enumerate(inds[:-1]):
             new_df = _resample_segment(
-                            df_fish.loc[ind:inds[i+1]-1, :], ind_win, signal)
+                            df_loc.loc[ind:inds[i+1]-1, :], ind_win, signal)
             new_df = new_df.drop('switch', 1)
             df_out = df_out.append(new_df, ignore_index=True)
-        new_df = _resample_segment(df_fish.loc[inds[-1]:, :], ind_win, signal)
+        new_df = _resample_segment(df_loc.loc[inds[-1]:, :], ind_win, signal)
         new_df = new_df.drop('switch', 1)
         df_out = df_out.append(new_df, ignore_index=True)
 

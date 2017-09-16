@@ -84,16 +84,21 @@ def test_resample_segment():
 
 def test_resample():
     df = pd.DataFrame(
-        {'fish': np.concatenate((np.ones(10), 2*np.ones(10))).astype(int),
+        {'location': np.concatenate((np.ones(10), 2*np.ones(10))).astype(int),
          'exp_time': np.concatenate((np.arange(10),
                                      np.arange(10))).astype(float),
          'exp_ind': np.concatenate((np.arange(10), np.arange(10))).astype(int),
+         'zeit': np.concatenate((np.arange(10),
+                                 np.arange(10))).astype(float),
+         'zeit_ind': np.concatenate((np.arange(10), 
+                                     np.arange(10))).astype(int),
          'activity': np.concatenate((np.arange(10),
                                      np.arange(10, 20))).astype(float),
          'sleep': np.ones(20, dtype=float),
          'light': [True]*5 + [False]*5 + [True]*5 + [False]*5,
          'day': [5]*10 + [6]*10,
          'genotype': ['wt']*20,
+         'acquisition': np.ones(20, dtype=int),
          'time': pd.to_datetime(['2017-03-30 14:00:00',
                                  '2017-03-30 14:01:00',
                                  '2017-03-30 14:02:00',
@@ -111,14 +116,17 @@ def test_resample():
     correct_df = pd.DataFrame(
         {'activity': np.array([10., 35., 60., 85.]),
          'day': [5, 5, 6, 6],
-         'fish': np.array([1, 1, 2, 2], dtype=int),
+         'location': np.array([1, 1, 2, 2], dtype=int),
          'genotype': ['wt']*4,
          'light': [True, False, True, False],
          'sleep': np.array([5., 5., 5., 5.]),
          'time': pd.to_datetime(['2017-03-30 14:00:00',
                                  '2017-03-30 14:05:00']*2),
          'exp_time': np.array([0., 5., 0., 5.]),
-         'exp_ind': np.array([0, 5, 0, 5], dtype=int)})
+         'exp_ind': np.array([0, 5, 0, 5], dtype=int),
+         'zeit': np.array([0., 5., 0., 5.]),
+         'zeit_ind': np.array([0, 5, 0, 5], dtype=int),
+         'acquisition': np.ones(4, dtype=int)})
     assert_frame_equal(re_df, correct_df)
 
     re_df = fishact.parse.resample(df, 3, quiet=True)
@@ -126,7 +134,7 @@ def test_resample():
     correct_df = pd.DataFrame(
         {'activity': np.array([3., 10.5, 18., 25.5, 33., 40.5, 48., 55.5]),
          'day': [5, 5, 5, 5, 6, 6, 6, 6],
-         'fish': np.array([1, 1, 1, 1, 2, 2, 2, 2], dtype=int),
+         'location': np.array([1, 1, 1, 1, 2, 2, 2, 2], dtype=int),
          'genotype': ['wt']*8,
          'light': [True, True, False, False, True, True, False, False],
          'sleep': np.array([3., 3., 3., 3., 3., 3., 3., 3.]),
@@ -135,7 +143,10 @@ def test_resample():
                                  '2017-03-30 14:05:00',
                                  '2017-03-30 14:08:00']*2),
          'exp_time': np.array([0., 3., 5., 8., 0., 3., 5., 8.]),
-         'exp_ind': np.array([0, 3, 5, 8, 0, 3, 5, 8], dtype=int)})
+         'exp_ind': np.array([0, 3, 5, 8, 0, 3, 5, 8], dtype=int),
+         'zeit': np.array([0., 3., 5., 8., 0., 3., 5., 8.]),
+         'zeit_ind': np.array([0, 3, 5, 8, 0, 3, 5, 8], dtype=int),
+         'acquisition': np.ones(8, dtype=int)})
     assert_frame_equal(re_df, correct_df)
 
 
