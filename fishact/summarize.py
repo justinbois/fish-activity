@@ -19,23 +19,35 @@ def _compute_bouts(df, rest=True):
     df : pandas DataFrame
         Tidy DataFrame, as outputted by fishact.parse.load_activity(),
         containing the following columns:
-        - activity: The activity as given by the instrument, based
+       - activity: The activity as given by the instrument, based
           on the `middur` columns of the inputted data set. This
-          column may be called 'middur' depending on the `rename`
+          column may be called 'middur' dependinfg on the `rename`
           kwarg.
         - time: time in proper datetime format, based on the `sttime`
           column of the inputted data file
         - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
           This is convenient for computing sleep when resampling.
-        - fish: ID of the fish
+        - location: ID of the location of the animal. This is often
+          renamted to `fish`, but not by default.
         - genotype: genotype of the fish
+        - zeit: The Zeitgeber time, based off of the clock time, not
+          the experimental time. Zeitgeber time zero is specified with 
+          the `zeitgeber_0` kwarg, or alternatively with the 
+          `zeitgeber_0_day` and `zeitgeber_0_time` kwargs.
+        - zeit_ind: Index of the measured Zeitgeber time. Because of 
+          some errors in the acquisition, sometimes the times do not
+          perfectly line up. This is needed for computing averages over
+          locations at each time point.
         - exp_time: Experimental time, based on the `start` column of
-            the inputted data file
+          the inputted data file
         - exp_ind: an index for the experimental time. Because of some
           errors in the acquisition, sometimes the times do not
           perfectly line up. exp_ind is just the index of the
           measurement. This is needed for computing averages over
           fish at each time point.
+        - acquisition: Number associated with which acquisition the data
+          are coming from. If the experimenter restarts acquisition,
+          this number would change.
         - light: True if the light is on.
         - day: The day in the life of the fish. The day begins with
           `lights_on`.
@@ -44,16 +56,16 @@ def _compute_bouts(df, rest=True):
     -------
     output : pandas DataFrame
         Tidy DataFrame, with the following columns:
-        - fish: ID of the fish
+        - location: ID of the fish
         - genotype: genotype of the fish
         - day_start: Start day of bout
         - day_end: End day of bout
         - light_start: True if light is on at start of bout.
         - light_end: True if light is on at end of bout.
-        - bout_start_exp: Time of start of bout since the
-            beginning of the experiment (usually in units of hours).
-        - bout_end_exp: Time of end of bout since the
-            beginning of the experiment (usually in units of hours).
+        - bout_start_zeit: Time of start of bout according to Zeitgeber 
+            time (usually in units of hours).
+        - bout_end_zeit: Time of end of bout according to Zeitgeber time
+            (usually in units of hours).
         - bout_start_clock: Wall clock time of start of bout.
         - bout_end_clock: Wall clock time of the end of bout.
         - bout_length: Length of the bout in same units as

@@ -154,15 +154,15 @@ def test_tidy_data():
     # Test that it will not overwrite existing file
     with pytest.raises(RuntimeError) as excinfo:
         fishact.parse.tidy_data('test.csv', 'test_geno.txt', 'test.csv')
-    excinfo.match("Cannot overwrite input file.")
+    excinfo.match("Cowardly refusing to overwrite input file.")
 
     with pytest.raises(RuntimeError) as excinfo:
         fishact.parse.tidy_data('test.csv', 'test_geno.txt', 'test_geno.txt')
-    excinfo.match("Cannot overwrite input file.")
+    excinfo.match("Cowardly refusing to overwrite input file.")
 
     with pytest.raises(RuntimeError) as excinfo:
         fishact.parse.tidy_data('test.csv', 'test_geno.txt',
                                 'tests/empty_file_for_tests.csv')
-    excinfo.match("empty_file_for_tests.csv already exists, not overwriting.")
+    excinfo.match("tests/empty_file_for_tests.csv already exists, cowardly refusing to overwrite.")
 
     ## TO DO: integration test: make sure output CSV is as expected.

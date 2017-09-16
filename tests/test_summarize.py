@@ -8,7 +8,7 @@ import fishact
 
 
 def test_sleep_latency():
-    df = pd.DataFrame({'exp_time': np.linspace(0.0, 19.0, 20),
+    df = pd.DataFrame({'zeit': np.linspace(0.0, 19.0, 20),
                        'sleep': np.ones(20, dtype=int)})
 
     assert np.isnan(fishact.summarize._sleep_latency(df))
@@ -33,7 +33,7 @@ def test_sleep_latency():
 
 
 def test_compute_bouts():
-    df = pd.DataFrame({'exp_time': np.linspace(0.0, 19.0, 20),
+    df = pd.DataFrame({'zeit': np.linspace(0.0, 19.0, 20),
                        'sleep': np.ones(20, dtype=int),
                        'time': pd.to_datetime(['2017-03-30 14:00:00',
                                                '2017-03-30 14:01:00',
@@ -60,7 +60,7 @@ def test_compute_bouts():
 
     correct_df = pd.DataFrame(
         columns=['day_start', 'day_end', 'light_start', 'light_end',
-                 'bout_start_exp', 'bout_end_exp',
+                 'bout_start_zeit', 'bout_end_zeit',
                  'bout_start_clock', 'bout_end_clock', 'bout_length'])
     assert_frame_equal(fishact.summarize._compute_bouts(df), correct_df)
 
@@ -76,8 +76,8 @@ def test_compute_bouts():
                'day_end': 5,
                'light_start': True,
                'light_end': True,
-               'bout_start_exp': 3.0,
-               'bout_end_exp': 7.0,
+               'bout_start_zeit': 3.0,
+               'bout_end_zeit': 7.0,
                'bout_start_clock': pd.to_datetime('2017-03-30 14:03:00'),
                'bout_end_clock': pd.to_datetime('2017-03-30 14:07:00'),
                'bout_length': 4.0}, ignore_index=True)
@@ -94,8 +94,8 @@ def test_compute_bouts():
                'day_end': [5, 5],
                'light_start': [True, True],
                'light_end': [True, True],
-               'bout_start_exp': [3.0, 9.0],
-               'bout_end_exp': [7.0, 19.0],
+               'bout_start_zeit': [3.0, 9.0],
+               'bout_end_zeit': [7.0, 19.0],
                'bout_start_clock': pd.to_datetime(['2017-03-30 14:03:00',
                                                    '2017-03-30 14:09:00']),
                'bout_end_clock': pd.to_datetime(['2017-03-30 14:07:00',
