@@ -211,8 +211,8 @@ def load_gtype(fname, comment='#', double_header=None, rstrip=False,
     -------
     df : pandas DataFrame
         Tidy DataFrame with columns:
-        - fish: ID of fish
-        - genotype: genotype of fish
+        - location: ID of location
+        - genotype: genotype of animal at location
     """
 
     # Sniff file info
@@ -239,30 +239,35 @@ def load_gtype(fname, comment='#', double_header=None, rstrip=False,
                             for col in df.columns]
 
     # Melt the DataFrame
-    df = pd.melt(df, var_name='genotype', value_name='fish').dropna()
+    df = pd.melt(df, var_name='genotype', value_name='location').dropna()
 
     # Reset the index
     df = df.reset_index(drop=True)
 
     # Make sure data type is integer
-    df.loc[:,'fish'] = df.loc[:,'fish'].astype(int)
+    df.loc[:,'location'] = df.loc[:,'location'].astype(int)
 
     return df
 
 
 def load_activity(fname, genotype_fname, lights_on='9:00:00',
                   lights_off='23:00:00', day_in_the_life=4,
+                  zeitgeber_0=None, zeitgeber_0_day=5, zeitgeber_0_time=None,
                   wake_threshold=0.1, extra_cols=[],
-                  rename={'middur': 'activity'}, comment='#',
+                  rename={'middur': 'activity', 'location': 'fish'}, 
+                  comment='#',
                   gtype_double_header=None, gtype_rstrip=False):
     """
     Load in activity CSV file to tidy DateFrame
 
     Parameters
     ----------
-    fname : string
-        CSV file containing the activity data. This is a conversion
-        to CSV of the Excel file that comes off the instrument.
+    fname : string, or list or tuple or strings
+        If a string, the CSV file containing the activity data. This is
+        a conversion to CSV of the Excel file that comes off the
+        instrument. If a list or tuple, each entry contains a CSV file 
+        for a single experiment. The data in these files are stitched
+        together.
     genotype_fname : string
         File containing genotype information. This is in standard
         Prober lab format, with tab delimited file.
@@ -270,7 +275,7 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
         - Second row contains genotypes. String is only kept up to
           the last space because they typically appear something like
           'tph2-/- (n=20)', and we do not need the ' (n=20)'.
-        - Subsequent rows containg wells in the 96 well plate
+        - Subsequent rows containing wells in the 96 well plate
           corresponding to each genotype.
     lights_on : string or datetime.time instance, default '9:00:00'
         The time where lights come on each day, e.g., '9:00:00'.
@@ -281,6 +286,15 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
     day_in_the_life : int, default 4
         The day in the life of the embryos when data acquisition
         started.
+    zeitgeber_0 : datetime instance, default None
+        If not None, gives the date and time of Zeitgeber time zero. 
+    zeitgeber_0_day : int, default 5
+        The day in the life of the embryos where Zeitgeber time zero is.
+        Ignored if `zeitgeber_0` is not None.
+    zeigeber_0_time : str, or None (default)
+        String representing time of Zeitgeber time zero. If None,
+        defaults to the value of `lights_on`. Ignored if `zeitgeber_0` 
+        is not None.
     wake_threshold : float, default 0.1
         Threshold number of seconds per minute that the fish moved
         to be considered awake.
@@ -288,7 +302,7 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
         List of extra columns to keep from the input file, e.g.,
         ['frect', 'fredur']. By default, only time, fish ID, and
         activity as measured by 'middur' is kept.
-    rename : dict, default {'middur': 'activity'}
+    rename : dict, default {'middur': 'activity', 'location': 'fish'}
         Dictionary for renaming column headings.
     comment : string, default '#'
         Test that begins and comment line in the file
@@ -336,15 +350,145 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
        a day.
     """
 
-    # Convert lights_on and lights_off to datetime.time objects
+
+    # Get genotype information
+    df_gt = load_gtype(genotype_fname, comment=comment,
+                       double_header=gtype_double_header, rstrip=gtype_rstrip)
+
+    # Read in DataFrames
+    if type(fname) == str:
+        fname = [fname]
+
+    # Read in DataFrames
+    df = pd.concat([_load_single_activity_file(
+                        filename, 
+                        df_gt,
+                        extra_cols=extra_cols, 
+                        comment=comment)
+                    for filename in fname])
+
+    # Columns to use
+    usecols = list(df.columns)
+
+    # Sort by location and then time
+    df = df.sort_values(['location', 'time']).reset_index(drop=True)
+
+    # Convert lights_on to datetime
     if type(lights_on) != datetime.time:
         lights_on = pd.to_datetime(lights_on).time()
     if type(lights_off) != datetime.time and lights_off is not None:
         lights_off = pd.to_datetime(lights_off).time()
 
-    # Get genotype information
-    df_gt = load_gtype(genotype_fname, comment=comment,
-                       double_header=gtype_double_header, rstrip=gtype_rstrip)
+    # Convert zeitgeber_0 to datetime object
+    if zeitgeber_0 is not None and type(zeitgeber_0) == str:
+        zeitgeber_0 = pd.to_datetime(zeitgeber_0)
+
+    # Determine light or dark
+    if lights_off is None:
+        df['light'] = [True] * len(df)
+    else:
+        clock = pd.DatetimeIndex(df['time']).time
+        df['light'] = np.logical_and(clock >= lights_on, clock < lights_off)
+
+    # Get earliest time point
+    t_min = pd.DatetimeIndex(df['time']).min()
+
+    # Which day it is (day goes lights on to lights on)
+    df['day'] = pd.DatetimeIndex(
+        df['time'] - datetime.datetime.combine(t_min.date(), lights_on)).day \
+                + day_in_the_life - 1
+
+    # Compute zeitgeber_0
+    if zeitgeber_0 is None:
+        times = df.loc[
+            (df['day']==zeitgeber_0_day) & (df['light'] == True), 
+            'time']
+        if len(times) == 0:
+            raise RuntimeError(
+                    'Unable to find Zeitgeber_0. Check `day_in_the_life` and '
+                  + 'zeitgeber_0_day` inputs.')
+        zeit_date = times.min().date()
+        zeitgeber_0 = pd.to_datetime(str(zeit_date) + ' ' + str(lights_on))
+
+    # Add Zeitgeber time
+    df['zeit'] = (df['time'] - zeitgeber_0).dt.total_seconds() / 3600
+
+    # Set up exp_time indices
+    for loc in df['location'].unique():
+        df.loc[df['location']==loc, 'exp_ind'] = np.arange(
+                                            np.sum(df['location']==loc))
+    df['exp_ind'] = df['exp_ind'].astype(int)
+
+    # Only use columns we want
+    if 'sttime' not in extra_cols:
+        usecols.remove('sttime')
+    if 'stdate' not in extra_cols:
+        usecols.remove('stdate')
+    if 'start' not in extra_cols:
+        usecols.remove('start')
+
+    cols = usecols + ['zeit', 'exp_ind', 'light', 'day']
+    df = df[cols]
+
+    # Compute sleep
+    df['sleep'] = (df['middur'] < wake_threshold).astype(int)
+
+    # Get experimental time in units of hours (DEPRECATED)
+    # df['exp_time'] = df['start'] / 3600
+
+    # Rename columns
+    if rename is not None:
+        df = df.rename(columns=rename)
+
+    return df
+
+
+
+
+def _load_single_activity_file(
+        fname, 
+        df_gt,
+        extra_cols=[],
+        comment='#'):
+    """
+    Load in activity CSV file to tidy DateFrame
+
+    Parameters
+    ----------
+    fname : string
+        The CSV file containing the activity data. This is
+        a conversion to CSV of the Excel file that comes off the
+        instrument.
+    df : pandas DataFrame
+        Tidy DataFrame with columns:
+        - location: ID of location
+        - genotype: genotype of of animal at location
+    extra_cols : list, default []
+        List of extra columns to keep from the input file, e.g.,
+        ['frect', 'fredur']. By default, only time, location ID, and
+        activity as measured by 'middur' is kept.
+    comment : string, default '#'
+        Test that begins and comment line in the file
+
+    Returns
+    -------
+    df : pandas DataFrame
+        Tidy DataFrame with columns:
+        - activity: The activity as given by the instrument, based
+          on the `middur` columns of the inputted data set. This
+          column may be called 'middur' depending on the `rename`
+          kwarg.
+        - time: time in proper datetime format, based on the `sttime`
+          column of the inputted data file
+        - location: ID of the organism
+
+    Notes
+    -----
+    .. If `lights_off` is `None`, this means we ignore the lighting,
+       but we still want to know what day it is. Specification of
+       `lights_on` says what wall clock time specifies the start of
+       a day.
+    """
 
     # Determine which columns to read in
     if extra_cols is None:
@@ -361,73 +505,28 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
     df = pd.read_csv(fname, usecols=usecols, comment=comment,
                      delimiter=delimiter)
 
-    # Convert location to fish
-    df = df.rename(columns={'location': 'fish'})
-
     # Detect if it's the new file format, and the convert fish to integer
-    if '-' in df['fish'].iloc[0]:
-        df['fish'] = df['fish'].apply(lambda x: x[x.rfind('-')+1:]).astype(int)
+    if '-' in df['location'].iloc[0]:
+        df['location'] = (df['location']
+                            .apply(lambda x: x[x.rfind('-')+1:])
+                            .astype(int))
     else:
-        df['fish'] = df['fish'].str.extract('(\d+)', expand=False).astype(int)
+        df['location'] = (df['location']
+                            .str.extract('(\d+)', expand=False)
+                            .astype(int))
 
     # Only keep fish that we have genotypes for
-    df = df.loc[df['fish'].isin(df_gt['fish']), :]
+    df = df.loc[df['location'].isin(df_gt['location']), :]
 
     # Store the genotypes
-    fish_lookup = {fish: df_gt.loc[df_gt['fish']==fish, 'genotype'].values[0]
-                          for fish in df_gt['fish']}
-    df['genotype'] = df['fish'].apply(lambda x: fish_lookup[x])
+    loc_lookup = {loc: df_gt.loc[df_gt['location']==loc, 'genotype']
+                             .values[0]
+                        for loc in df_gt['location']}
+    df['genotype'] = df['location'].apply(lambda x: loc_lookup[x])
 
     # Convert date and time to a time stamp
     df['time'] = pd.to_datetime(df['stdate'] + df['sttime'],
                                 format='%d/%m/%Y%H:%M:%S')
-
-    # Get earliest time point
-    t_min = pd.DatetimeIndex(df['time']).min()
-
-    # Get experimental time in units of hours
-    df['exp_time'] = df['start'] / 3600
-
-    # Determine light or dark
-    if lights_off is None:
-        df['light'] = [True] * len(df)
-    else:
-        clock = pd.DatetimeIndex(df['time']).time
-        df['light'] = np.logical_and(clock >= lights_on, clock < lights_off)
-
-    # Which day it is (remember, day goes lights on to lights on)
-    df['day'] = pd.DatetimeIndex(
-        df['time'] - datetime.datetime.combine(t_min.date(), lights_on)).day \
-                + day_in_the_life - 1
-
-    # Sort by fish and exp_time
-    df = df.sort_values(by=['fish', 'exp_time']).reset_index(drop=True)
-
-    # Set up exp_time indices
-    for fish in df['fish'].unique():
-        df.loc[df['fish']==fish, 'exp_ind'] = np.arange(
-                                                    np.sum(df['fish']==fish))
-    df['exp_ind'] = df['exp_ind'].astype(int)
-
-    # Return everything if we don't want to delete anything
-    if 'sttime' not in extra_cols:
-        usecols.remove('sttime')
-    if 'stdate' not in extra_cols:
-        usecols.remove('stdate')
-    if 'start' not in extra_cols:
-        usecols.remove('start')
-    usecols.remove('location')
-
-    cols = usecols + ['time', 'fish', 'genotype', 'exp_time', 'exp_ind',
-                      'light', 'day']
-    df = df[cols]
-
-    # Compute sleep
-    df['sleep'] = (df['middur'] < wake_threshold).astype(int)
-
-    # Rename columns
-    if rename is not None:
-        df = df.rename(columns=rename)
 
     return df
 
@@ -526,7 +625,7 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
         day[dark_to_light[i]+1:dark_to_light[i+1]+1] = i + 1
     day[dark_to_light[-1]+1:] = len(dark_to_light)
 
-    # Insert the day numnber into DataFrame
+    # Insert the day number into DataFrame
     df['day'] = pd.Series(day, index=df.index) + day_in_the_life
 
     # Build exp_time and put it in the DataFrame
