@@ -99,6 +99,8 @@ def test_resample():
          'day': [5]*10 + [6]*10,
          'genotype': ['wt']*20,
          'acquisition': np.ones(20, dtype=int),
+         'instrument':  np.ones(20, dtype=int),
+         'trial':  np.ones(20, dtype=int),
          'time': pd.to_datetime(['2017-03-30 14:00:00',
                                  '2017-03-30 14:01:00',
                                  '2017-03-30 14:02:00',
@@ -126,7 +128,9 @@ def test_resample():
          'exp_ind': np.array([0, 5, 0, 5], dtype=int),
          'zeit': np.array([0., 5., 0., 5.]),
          'zeit_ind': np.array([0, 5, 0, 5], dtype=int),
-         'acquisition': np.ones(4, dtype=int)})
+         'acquisition': np.ones(4, dtype=int),
+         'instrument': np.ones(4, dtype=int),
+         'trial': np.ones(4, dtype=int)})
     assert_frame_equal(re_df, correct_df)
 
     re_df = fishact.parse.resample(df, 3, quiet=True)
@@ -146,7 +150,9 @@ def test_resample():
          'exp_ind': np.array([0, 3, 5, 8, 0, 3, 5, 8], dtype=int),
          'zeit': np.array([0., 3., 5., 8., 0., 3., 5., 8.]),
          'zeit_ind': np.array([0, 3, 5, 8, 0, 3, 5, 8], dtype=int),
-         'acquisition': np.ones(8, dtype=int)})
+         'acquisition': np.ones(8, dtype=int),
+         'instrument': np.ones(8, dtype=int),
+         'trial': np.ones(8, dtype=int)})
     assert_frame_equal(re_df, correct_df)
 
 
