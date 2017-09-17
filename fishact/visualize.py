@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 
+from . import parse
+
 import tsplot
 
 def ecdf(data, formal=False, buff=0.1, min_x=None, max_x=None):
@@ -205,9 +207,24 @@ def all_traces(df, signal='activity', summary_trace='mean',
     # Make y-axis label
     y_axis_label = get_y_axis_label(df, signal)
 
+    # Get all instrument/trial pairs
+    inst_trial = parse.instrument_trial_pairs(df)
+
+    if len(inst_trial) == 1:
+        df_in = df
+    else:
+        # Be sure it is sorted by zeit
+        df_in = df.sort_values(by=['zeit', 'instrument', 'trial', loc_name])
+
+        # Convert location name to instrument/trial/location tuple
+        df_in['new_loc_name'] = [(r['instrument'], r['trial'], r[loc_name])
+                                     for _, r in df_in.iterrows()]
+        loc_name = 'new_loc_name'
+
+
     # Make plots
     p = tsplot.all_traces(
-            df, 'zeit', signal, loc_name, time_ind='zeit_ind',
+            df_in, 'zeit', signal, loc_name, time_ind='zeit_ind',
             light='light', summary_trace='mean', time_shift=time_shift,
             alpha=0.75, x_axis_label='time (hr)', y_axis_label=y_axis_label)
 
@@ -270,9 +287,24 @@ def grid(df, signal='activity', summary_trace='mean', loc_name='location',
     # Make y-axis label
     y_axis_label = get_y_axis_label(df, signal)
 
+    # Get all instrument/trial pairs
+    inst_trial = parse.instrument_trial_pairs(df)
+
+    if len(inst_trial) == 1:
+        df_in = df
+    else:
+        # Be sure it is sorted by zeit
+        df_in = df.sort_values(by=['zeit', 'instrument', 'trial', loc_name])
+
+        # Convert location name to instrument/trial/location tuple
+        df_in['new_loc_name'] = [(r['instrument'], r['trial'], r[loc_name])
+                                     for _, r in df_in.iterrows()]
+        loc_name = 'new_loc_name'
+
+
     # Make plots
     p = tsplot.grid(
-            df, 'zeit', signal, 'genotype', loc_name, cats=gtype_order,
+            df_in, 'zeit', signal, 'genotype', loc_name, cats=gtype_order,
             time_ind='zeit_ind', light='light', summary_trace=summary_trace,
             time_shift=time_shift, height=height, width=width,
             x_axis_label='time (hr)', y_axis_label=y_axis_label, colors=colors)
@@ -347,12 +379,26 @@ def summary(df, signal='activity', summary_trace='mean', loc_name='location',
     # Make y-axis label
     y_axis_label = get_y_axis_label(df, signal)
 
+    # Get all instrument/trial pairs
+    inst_trial = parse.instrument_trial_pairs(df)
+
+    if len(inst_trial) == 1:
+        df_in = df
+    else:
+        # Be sure it is sorted by zeit
+        df_in = df.sort_values(by=['zeit', 'instrument', 'trial', loc_name])
+
+        # Convert location name to instrument/trial/location tuple
+        df_in['new_loc_name'] = [(r['instrument'], r['trial'], r[loc_name])
+                                     for _, r in df_in.iterrows()]
+        loc_name = 'new_loc_name'
+
     p = tsplot.summary(
-            df, 'zeit', signal, 'genotype', loc_name, cats=gtype_order,
+            df_in, 'zeit', signal, 'genotype', loc_name, cats=gtype_order,
             time_ind='zeit_ind', light='light', summary_trace=summary_trace,
             time_shift=time_shift, confint=confint, ptiles=ptiles,
             n_bs_reps=n_bs_reps, alpha=0.25, height=height, width=width,
-            x_axis_label='time (hr)', y_axis_label=y_axis_label, colors=colors,
-            legend=legend)
+            x_axis_label='time (hr)', y_axis_label=y_axis_label, 
+            colors=colors, legend=legend)
 
     return p

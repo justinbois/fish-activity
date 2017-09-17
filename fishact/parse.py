@@ -144,14 +144,14 @@ def tidy_data(fname, genotype_fname, out_fname, lights_on='9:00:00',
     .. Writes a tidy data set with columns:
         - activity: The activity as given by the instrument, based
           on the `middur` columns of the inputted data set. This
-          column may be called 'middur' dependinfg on the `rename`
+          column may be called 'middur' depending on the `rename`
           kwarg.
         - time: time in proper datetime format, based on the `sttime`
           column of the inputted data file
         - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
           This is convenient for computing sleep when resampling.
         - location: ID of the location of the animal. This is often
-          renamted to `fish`, but not by default.
+          renamed to `fish`, but not by default.
         - genotype: genotype of the fish
         - zeit: The Zeitgeber time, based off of the clock time, not
           the experimental time. Zeitgeber time zero is specified with 
@@ -273,25 +273,24 @@ def load_gtype(fname, comment='#', double_header=None, rstrip=False,
     return df
 
 
-def load_activity(fname, genotype_fname, lights_on='9:00:00',
-                  lights_off='23:00:00', day_in_the_life=4,
-                  zeitgeber_0=None, zeitgeber_0_day=5, zeitgeber_0_time=None,
-                  wake_threshold=0.1, extra_cols=[],
-                  rename={'middur': 'activity'}, 
-                  comment='#',
+def load_activity(fname, genotype_fname, instrument=-9999, trial=-9999,
+                  lights_on='9:00:00', lights_off='23:00:00', 
+                  day_in_the_life=4, zeitgeber_0=None, zeitgeber_0_day=5,
+                  zeitgeber_0_time=None, wake_threshold=0.1, extra_cols=[],
+                  rename={'middur': 'activity'}, comment='#',
                   gtype_double_header=None, gtype_rstrip=False):
     """
     Load in activity CSV file to tidy DateFrame
 
     Parameters
     ----------
-    fname : string, or list or tuple or strings
+    fname : str, or list or tuple or strings
         If a string, the CSV file containing the activity data. This is
         a conversion to CSV of the Excel file that comes off the
         instrument. If a list or tuple, each entry contains a CSV file 
         for a single experiment. The data in these files are stitched
         together.
-    genotype_fname : string
+    genotype_fname : str
         File containing genotype information. This is in standard
         Prober lab format, with tab delimited file.
         - First row discarded
@@ -300,6 +299,13 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
           'tph2-/- (n=20)', and we do not need the ' (n=20)'.
         - Subsequent rows containing wells in the 96 well plate
           corresponding to each genotype.
+    instrument: str of int
+        Name of instrument used to make measurement. If not specified,
+        the 'instrument' column is populated with -9999 as a 
+        placeholder.
+    trial: str or int, default -9999
+        Trial number of measurement. If not specified, the 'trial'
+        column is populated with -9999 as a placeholder.
     lights_on : string or datetime.time instance, default '9:00:00'
         The time where lights come on each day, e.g., '9:00:00'.
     lights_off: string or datetime.time, or None, default '23:00:00'
@@ -346,14 +352,14 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
         Tidy DataFrame with columns:
         - activity: The activity as given by the instrument, based
           on the `middur` columns of the inputted data set. This
-          column may be called 'middur' dependinfg on the `rename`
+          column may be called 'middur' depending on the `rename`
           kwarg.
         - time: time in proper datetime format, based on the `sttime`
           column of the inputted data file
         - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
           This is convenient for computing sleep when resampling.
         - location: ID of the location of the animal. This is often
-          renamted to `fish`, but not by default.
+          renamed to `fish`, but not by default.
         - genotype: genotype of the fish
         - zeit: The Zeitgeber time, based off of the clock time, not
           the experimental time. Zeitgeber time zero is specified with 
@@ -373,6 +379,10 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
         - acquisition: Number associated with which acquisition the data
           are coming from. If the experimenter restarts acquisition,
           this number would change.
+        - instrument: Name of instrument used to acquire the data. If no
+          instrument is known, this is populated with NaNs.
+        - trial: Name of trial of data acquisition.  If no trial is 
+          known, this is populated with NaNs.
         - light: True if the light is on.
         - day: The day in the life of the fish. The day begins with
           `lights_on`.
@@ -483,7 +493,118 @@ def load_activity(fname, genotype_fname, lights_on='9:00:00',
     if rename is not None:
         df = df.rename(columns=rename)
 
+    # Fill in trial and instrument information
+    df['instrument'] = [instrument] * len(df)
+    df['trial'] = [trial] * len(df)
+
     return df
+
+
+def merge_experiments(dfs, instrument_trial=None):
+    """
+    Merge DataFrames from multiple experiments into one.
+
+    Parameters
+    ----------
+    dfs : list of DataFrames
+        Each DataFrame is as would be returned by load_activity() and
+        has columns
+        - activity: The activity as given by the instrument, based
+          on the `middur` columns of the inputted data set. This
+          column may be called 'middur' depending on the `rename`
+          kwarg.
+        - time: time in proper datetime format, based on the `sttime`
+          column of the inputted data file
+        - sleep : 1 if fish is asleep (activity = 0), and 0 otherwise.
+          This is convenient for computing sleep when resampling.
+        - location: ID of the location of the animal. This is often
+          renamed to `fish`, but not by default.
+        - genotype: genotype of the fish
+        - zeit: The Zeitgeber time, based off of the clock time, not
+          the experimental time. Zeitgeber time zero is specified with 
+          the `zeitgeber_0` kwarg, or alternatively with the 
+          `zeitgeber_0_day` and `zeitgeber_0_time` kwargs.
+        - zeit_ind: Index of the measured Zeitgeber time. Because of 
+          some errors in the acquisition, sometimes the times do not
+          perfectly line up. This is needed for computing averages over
+          locations at each time point.
+        - exp_time: Experimental time, based on the `start` column of
+          the inputted data file
+        - exp_ind: an index for the experimental time. Because of some
+          errors in the acquisition, sometimes the times do not
+          perfectly line up. exp_ind is just the index of the
+          measurement. This is needed for computing averages over
+          fish at each time point.
+        - acquisition: Number associated with which acquisition the data
+          are coming from. If the experimenter restarts acquisition,
+          this number would change.
+        - instrument: Name of instrument used to acquire the data. If no
+          instrument is known, this is populated with NaNs.
+        - trial: Name of trial of data acquisition.  If no trial is 
+          known, this is populated with NaNs.
+        - light: True if the light is on.
+        - day: The day in the life of the fish. The day begins with
+          `lights_on`.
+    instrument_trial : list of 2-tuples
+        A list containing the name (or number) of instrument and trial 
+        used in acquiring the respective DataFrames. The length of the
+        list must be the same as the length of `dfs`. If None, the 
+        instrument and trial columns are taken from the inputted 
+        DataFrames. If a given entry is None, then values from
+        the `instrument` and `trial` columns of the inputted DataFrame 
+        are used. In this case, *all* inputted DataFrames must have
+        `instrument` and `trial` columns fully populated with proper
+        values (not NaN's nor the placeholder -9999).
+
+    Notes
+    -----
+    .. This will give unexpected results if the sampling frequency of
+       the data sets is different at all.
+    """
+
+    if instrument_trial is not None and len(instrument_trial) != len(dfs):
+        raise RuntimeError('Must have same number of entries in '
+                                + '`instrument_trial` as in `dfs`.')
+
+        if len(instrument_trial) != len(set(instrument_trial)):
+            raise RuntimeError('instrument, trial pairs are not all unique.')
+
+    # Make sure all DataFrames have the same columns
+    cols = list(sorted(dfs[0].columns))
+    if len(dfs) > 1:
+        for df in dfs[1:]:
+            if not np.all(list(sorted(df.columns)) == cols):
+                raise RuntimeError(
+                            'Not all DataFrames have the same columns.')
+
+    # Make sure all instrument/trial pairs are unique
+    if instrument_trial is None:
+        inst_trial_list = []
+        for df in dfs:
+            inst_trial_list += instrument_trial_pairs(df)
+        if (-9999, -9999) in inst_trial_list:
+            raise RuntimeError('Not all DataFrames have populated '
+                                + 'instrument and trial columns.')
+        if len(inst_trial_list) != len(set(inst_trial_list)):
+            raise RuntimeError(
+                'Nonunique instrument/trial pairs in inputted DataFrames.')
+
+    # Make outputted DataFrame
+    df_out = pd.DataFrame(columns=cols)
+
+    # Populate new DataFrame
+    for i, df in enumerate(dfs):
+        if instrument_trial is not None:
+            if not (df['instrument'] == -9999).all():
+                warning.warn('Overwriting instrument and trial columns.')
+            df['instrument'] = [instrument_trial[i][0]] * len(df)
+            df['trial'] = [instrument_trial[i][1]] * len(df)
+        df_out = df_out.append(df, ignore_index=True)
+
+    # Sort the DataFrame
+    df_out = df_out.sort_values(by=['instrument', 'trial', 'zeit'])
+
+    return df_out
 
 
 def _load_single_activity_file(
@@ -580,10 +701,173 @@ def _load_single_activity_file(
     return df
 
 
+@numba.jit(nopython=True)
+def _resample_array(x, ind_win):
+    """
+    Resample a NumPy array.
+
+    Parameters
+    ----------
+    x : ndarray
+        Array to resample with summing.
+    ind_win : int
+        Width of window to do resampling.
+
+    Returns
+    -------
+    output : ndarray
+        resampled array.
+    """
+    if len(x) == 0:
+        raise RuntimeError('`x` must be nonempty.')
+
+    # If the resampling window exceeds length of the array
+    if len(x) < ind_win:
+        return np.array([np.mean(x) * ind_win])
+
+    # Perform the resampling
+    if len(x) % ind_win == 0:
+        re_x = np.empty(len(x) // ind_win)
+        for i in range(len(x) // ind_win):
+            re_x[i] = np.sum(x[i*ind_win:(i+1)*ind_win])
+    else:
+        re_x = np.empty(len(x) // ind_win + 1)
+        for i in range(len(x) // ind_win):
+            re_x[i] = np.sum(x[i*ind_win:(i+1)*ind_win])
+        re_x[-1] = np.mean(x[ind_win*(len(x)//ind_win):]) * ind_win
+
+    return re_x
+
+
+def _resample_segment(df, ind_win, signal):
+    """
+    Resample a single sorted sequential time course of a DataFrame.
+    """
+    # Convert signal to list
+    if type(signal) not in [list, tuple]:
+        signal = [signal]
+
+    # Make DataFrame to hold resampled data
+    inds = df.index[::ind_win]
+    cols = [col for col in df.columns if col not in signal]
+    re_df = df.loc[inds, cols].reset_index(drop=True)
+
+    # Resample signal
+    for col in signal:
+        re_df[col] = _resample_array(df[col].values, ind_win)
+
+    return re_df
+
+
+def resample(df, ind_win, signal=['activity', 'sleep'], loc_name='location',
+             quiet=False):
+    """
+    Resample the DataFrame.
+
+    Parameters
+    ----------
+    df : pandas DataFrame
+        DataFrame with pertinent data. Must have columns 'time',
+        'fish', 'genotype', 'day', 'light', 'zeit'.
+    ind_win : int
+        Window for resampling, in units of indices.
+    signal : list, default ['activity', 'sleep']
+        List of columns in the DataFrame to resample. These are
+        the signals, e.g., ['activity', 'midct'], to resample.
+    loc_name : str
+        Name of column containing the "location," i.e., animal location.
+        'fish' is a common entry.
+    quiet : bool, default False
+        If True, status output to the screen is silenced.
+
+    Returns
+    -------
+    output : pandas DataFrame
+        Resampled DataFrame.
+
+    Notes
+    -----
+    .. Assumes that the signal is aligned with the
+       *left* of the time interval. I.e., if df['zeit'] = [0, 1, 2],
+       the values of df['activity'] are assumed to be aggregated over
+       time intervals 0 to 1, 1 to 2, and 2 to 3. The same is true
+       for the outputted resampled array.
+    """
+    # Make a copy so as to leave original unperturbed
+    df_in = df.copy()
+
+    # Convert the signal columns to floats
+    for sig in signal:
+        df_in[sig] = df_in[sig].astype(float)
+
+    # Sort the DataFrame by instrument, trial, location and then zeit
+    df_in = ( df_in.sort_values(by=['instrument', 'trial', loc_name, 'zeit'])
+                               .reset_index(drop=True))
+
+    # If no resampling is necessary
+    if ind_win == 1:
+        return df_in
+
+    # Set up output DataFrame
+    df_out = pd.DataFrame(columns=df_in.columns)
+
+    # Set up iterator to go through instrument/trial/location triples
+    iterator = [
+            (r['instrument'], r['trial'], r[loc_name]) 
+             for _, r in df_in.groupby(['instrument', 'trial', loc_name])
+                               .size()
+                               .reset_index()
+                               .iterrows()]
+    if not quiet:
+        print('Performing resampling....')
+        try:
+            iterator = tqdm.tqdm(iterator)
+        except:
+            pass
+
+    for inst, trial, loc in iterator:
+        # Slice out entry for loc
+        inds = (  (df['instrument'] == inst) 
+                & (df['trial'] == trial) 
+                & (df[loc_name] == loc))
+        df_loc = df_in.loc[inds, :].copy().reset_index(drop=True)
+
+        # Find indices where light or acquisition switches
+        df_loc['switch'] = (  df_loc['light'].diff().astype(bool) 
+                            | df_loc['acquisition'].diff())
+        df_loc.loc[df_loc.index[0], 'switch'] = True
+        inds = df_loc.where(df_loc['switch']).dropna().index
+
+        # Resample data for each segment
+        for i, ind in enumerate(inds[:-1]):
+            new_df = _resample_segment(
+                            df_loc.loc[ind:inds[i+1]-1, :], ind_win, signal)
+            new_df = new_df.drop('switch', 1)
+            df_out = df_out.append(new_df, ignore_index=True)
+        new_df = _resample_segment(df_loc.loc[inds[-1]:, :], ind_win, signal)
+        new_df = new_df.drop('switch', 1)
+        df_out = df_out.append(new_df, ignore_index=True)
+
+    # Make sure the data types are ok
+    for col in df_in:
+        df_out[col] = df_out[col].astype(df_in[col].dtype)
+
+    return df_out
+
+
+def instrument_trial_pairs(df):
+    """
+    Extract a list of all unique instrument/trial pairs.
+    """
+    df_iter = df.groupby(['instrument', 'trial']).size().reset_index()
+    return [(r['instrument'], r['trial']) for _, r in df_iter.iterrows()]
+
+
 def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
                                  wake_threshold=0.1, day_in_the_life=4):
     """
     Load activity data into tidy DataFrame from Prober lab Perl script.
+    This is not actively maintained and is likely to be deprecated.
 
     Parameters
     ----------
@@ -727,146 +1011,3 @@ def load_perl_processed_activity(fname, genotype_fname, lights_off=14.0,
     df['sleep'] = (df['activity'] < wake_threshold).astype(int)
 
     return df
-
-
-@numba.jit(nopython=True)
-def _resample_array(x, ind_win):
-    """
-    Resample a NumPy array.
-
-    Parameters
-    ----------
-    x : ndarray
-        Array to resample with summing.
-    ind_win : int
-        Width of window to do resampling.
-
-    Returns
-    -------
-    output : ndarray
-        resampled array.
-    """
-    if len(x) == 0:
-        raise RuntimeError('`x` must be nonempty.')
-
-    # If the resampling window exceeds length of the array
-    if len(x) < ind_win:
-        return np.array([np.mean(x) * ind_win])
-
-    # Perform the resampling
-    if len(x) % ind_win == 0:
-        re_x = np.empty(len(x) // ind_win)
-        for i in range(len(x) // ind_win):
-            re_x[i] = np.sum(x[i*ind_win:(i+1)*ind_win])
-    else:
-        re_x = np.empty(len(x) // ind_win + 1)
-        for i in range(len(x) // ind_win):
-            re_x[i] = np.sum(x[i*ind_win:(i+1)*ind_win])
-        re_x[-1] = np.mean(x[ind_win*(len(x)//ind_win):]) * ind_win
-
-    return re_x
-
-
-def _resample_segment(df, ind_win, signal):
-    """
-    Resample a single sorted sequential time course of a DataFrame.
-    """
-    # Convert signal to list
-    if type(signal) not in [list, tuple]:
-        signal = [signal]
-
-    # Make DataFrame to hold resampled data
-    inds = df.index[::ind_win]
-    cols = [col for col in df.columns if col not in signal]
-    re_df = df.loc[inds, cols].reset_index(drop=True)
-
-    # Resample signal
-    for col in signal:
-        re_df[col] = _resample_array(df[col].values, ind_win)
-
-    return re_df
-
-
-
-def resample(df, ind_win, signal=['activity', 'sleep'], loc_name='location',
-             quiet=False):
-    """
-    Resample the DataFrame.
-
-    Parameters
-    ----------
-    df : pandas DataFrame
-        DataFrame with pertinent data. Must have columns 'time',
-        'fish', 'genotype', 'day', 'light', 'zeit'.
-    ind_win : int
-        Window for resampling, in units of indices.
-    signal : list, default ['activity', 'sleep']
-        List of columns in the DataFrame to resample. These are
-        the signals, e.g., ['activity', 'midct'], to resample.
-    loc_name : str
-        Name of column containing the "location," i.e., animal location.
-        'fish' is a common entry.
-    quiet : bool, default False
-        If True, status output to the screen is silenced.
-
-    Returns
-    -------
-    output : pandas DataFrame
-        Resampled DataFrame.
-
-    Notes
-    -----
-    .. Assumes that the signal is aligned with the
-       *left* of the time interval. I.e., if df['zeit'] = [0, 1, 2],
-       the values of df['activity'] are assumed to be aggregated over
-       time intervals 0 to 1, 1 to 2, and 2 to 3. The same is true
-       for the outputted resampled array.
-    """
-    # Make a copy so as to leave original unperturbed
-    df_in = df.copy()
-
-    # Sort the DataFrame by location and then zeit
-    df_in = df_in.sort_values(by=[loc_name, 'zeit']).reset_index(drop=True)
-
-    # If no resampling is necessary
-    if ind_win == 1:
-        return df_in
-
-    # Set up output DataFrame
-    df_out = pd.DataFrame(columns=df_in.columns)
-
-    if not quiet:
-        print('Performing resampling....')
-        try:
-            iterator = tqdm.tqdm(df_in[loc_name].unique())
-        except:
-            iterator = df_in[loc_name].unique()
-    else:
-        iterator = df_in[loc_name].unique()
-
-    for loc in iterator:
-        # Slice out entry for loc
-        df_loc = df_in.loc[
-                    df_in[loc_name]==loc, :].copy().reset_index(drop=True)
-
-        # Find indices where light or acquisition switches
-        df_loc['switch'] = (  df_loc['light'].diff().astype(bool) 
-                            | df_loc['acquisition'].diff())
-        df_loc.loc[df_loc.index[0], 'switch'] = True
-        inds = df_loc.where(df_loc['switch']).dropna().index
-
-        # Resample data for each segment
-        for i, ind in enumerate(inds[:-1]):
-            new_df = _resample_segment(
-                            df_loc.loc[ind:inds[i+1]-1, :], ind_win, signal)
-            new_df = new_df.drop('switch', 1)
-            df_out = df_out.append(new_df, ignore_index=True)
-        new_df = _resample_segment(df_loc.loc[inds[-1]:, :], ind_win, signal)
-        new_df = new_df.drop('switch', 1)
-        df_out = df_out.append(new_df, ignore_index=True)
-
-    # Make sure the data types are ok
-    for col in df_in:
-        df_out[col] = df_out[col].astype(df_in[col].dtype)
-
-    return df_out
