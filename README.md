@@ -14,6 +14,6 @@ This package requires
 * tqdm (optional)
 
 ## Installation
-* Make sure all dependencies are installed.
-* Clone this repository.
-* Within directory housing this repository, run `python setup.py install` on the command line.
+After making sure all dependencies are installed, you can install useing pip.
+
+    pip install fish-activity
