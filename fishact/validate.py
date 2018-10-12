@@ -76,7 +76,7 @@ def test_genotype_file(fname, quiet=False):
             print('ERROR: No `omit` column in genotype file.\n')
 
     # Make sure columns (genotypes) are unique
-    dups = df.columns.get_duplicates()
+    dups = df.columns[df.columns.duplicated()].unique()
     if len(dups) > 0:
         if not quiet:
             print('ERROR: Duplicated genotypes:', dups, '\n')
